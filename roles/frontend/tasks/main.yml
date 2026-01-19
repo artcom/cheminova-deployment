@@ -1,0 +1,66 @@
+---
+- name: install dependencies
+  ansible.builtin.apt:
+    pkg:
+      - unzip
+      - rsync
+
+- name: create extract directory for {{ frontend_route }}
+  ansible.builtin.file:
+    path: "{{ frontend_download_directory }}/{{ frontend_project_name }}-{{ frontend_build }}"
+    owner: "{{ frontend_user }}"
+    group: "{{ frontend_user }}"
+    mode: "0700"
+    state: directory
+
+- name: create serve directory for {{ frontend_route }}
+  ansible.builtin.file:
+    path: "{{ frontend_www_directory }}/{{ frontend_route }}"
+    owner: "{{ frontend_user }}"
+    group: "{{ frontend_webserver_group }}"
+    mode: "0750"
+    state: directory
+
+- name: copy config file
+  ansible.builtin.template:
+    src: "{{ frontend_config_file }}"
+    dest: "{{ frontend_www_directory }}/{{ frontend_route }}/config.json"
+    owner: "{{ frontend_user }}"
+    group: "{{ frontend_webserver_group }}"
+    mode: "0640"
+
+- name: download github artifact for {{ frontend_route }}
+  ansible.builtin.get_url:
+    url: https://github.com/{{ frontend_project }}/releases/download/{{ frontend_build }}/{{ frontend_project_name }}-{{ frontend_build }}.tar.gz
+    dest: "{{ frontend_download_directory }}/"
+    owner: "{{ frontend_user }}"
+    group: "{{ frontend_user }}"
+    mode: "0600"
+  register: frontend_download
+
+- name: extract download for {{ frontend_route }}
+  ansible.builtin.unarchive:
+    src: "{{ frontend_download.dest }}"
+    remote_src: true
+    dest: "{{ frontend_download_directory }}/{{ frontend_project_name }}-{{ frontend_build }}"
+    owner: "{{ frontend_user }}"
+    group: "{{ frontend_user }}"
+    mode: "0750"
+
+- name: synchronize artifact directory for {{ frontend_route }}
+  ansible.posix.synchronize:
+    src: "{{ frontend_download_directory }}/{{ frontend_project_name }}-{{ frontend_build }}/"
+    dest: "{{ frontend_www_directory }}/{{ frontend_route }}"
+    archive: false
+    perms: true
+    owner: true
+    group: true
+    times: true
+    recursive: true
+    delete: true
+    rsync_opts:
+      - "--exclude=config.json"
+      - "--chown={{ frontend_user }}:{{ frontend_webserver_group }}"
+      - "--chmod=640,D750"
+      - "--omit-dir-times"
+  delegate_to: "{{ inventory_hostname }}"

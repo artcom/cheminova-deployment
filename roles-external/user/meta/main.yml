@@ -1,0 +1,21 @@
+galaxy_info:
+  author: sd
+  description: create deployment user
+  license: license (MIT)
+
+  min_ansible_version: 4.0
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+    - name: Debian
+      versions:
+        - buster
+
+  galaxy_tags: []
+
+dependencies:
+  - src: https://github.com/artcom/ansible-role-check-required-variables.git
+    scm: git
+    version: "v1.0.0"
+    name: check-required-variables

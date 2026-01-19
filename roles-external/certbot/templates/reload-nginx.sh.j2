@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+docker exec {{ certbot_compose_project_name }}-gateway-1 /usr/sbin/nginx -s reload

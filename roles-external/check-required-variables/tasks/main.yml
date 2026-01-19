@@ -1,0 +1,14 @@
+---
+- name: check required variables dict
+  ansible.builtin.debug:
+    msg: "{{ required_vars }}"
+  when: required_vars is not defined
+
+- name: check required variables
+  ansible.builtin.fail:
+    msg: "variable {{ required_var.key }} not defined"
+  no_log: "{{ required_var.value is defined and silent_vars is defined and required_var.key in silent_vars }}"
+  when: required_var.value is none or required_var.value is not defined
+  loop: "{{ required_vars | dict2items }}"
+  loop_control:
+    loop_var: required_var

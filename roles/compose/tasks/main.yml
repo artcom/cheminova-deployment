@@ -1,0 +1,57 @@
+- name: create compose directory
+  ansible.builtin.file:
+    path: "{{ compose_dir }}"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: copy docker-compose file
+  ansible.builtin.template:
+    src: "{{ compose_file }}"
+    dest: "{{ compose_dir }}/docker-compose.yml"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0640"
+  notify:
+    - docker-compose up
+    - migrate database
+
+- name: copy .env file
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ compose_dir }}/.env"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0640"
+  notify:
+    - docker-compose up
+    - migrate database
+
+- name: copy docker-compose up script
+  ansible.builtin.template:
+    src: compose-up.sh.j2
+    dest: "{{ compose_dir }}/compose-up.sh"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+  notify:
+    - docker-compose up
+    - migrate database
+
+- name: copy update container images script
+  ansible.builtin.template:
+    src: update-images.sh.j2
+    dest: "{{ compose_dir }}/update-images.sh"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: create cron job for updating container images
+  ansible.builtin.cron:
+    name: container images autoupdate
+    cron_file: container_images_autoupdate
+    user: "{{ deployment_user }}"
+    job: "{{ compose_dir }}/update-images.sh 2>&1 | tee | systemd-cat -t update-images"
+    hour: "2"
+    minute: "12"

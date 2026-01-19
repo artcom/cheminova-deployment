@@ -1,0 +1,7 @@
+certbot_challenge: http
+certbot_hostname: null
+certbot_email: null
+certbot_user: null
+certbot_config_dir: /srv/config/certbot
+certbot_dns_challenge_credentials: null
+certbot_generate_standalone_cert: true

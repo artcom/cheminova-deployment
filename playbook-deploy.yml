@@ -1,0 +1,49 @@
+- name: deploy public backend
+  hosts: all
+
+  vars:
+    ansible_user: "{{ deployment_user }}"
+    hostname: "{{ inventory_hostname }}"
+
+  handlers:
+    - name: docker-compose up # noqa no-changed-when
+      ansible.builtin.command: "{{ compose_dir }}/compose-up.sh"
+
+    - name: migrate database
+      community.docker.docker_compose_v2_exec:
+        project_src: "{{ compose_dir }}"
+        service: cms
+        command: "uv run manage.py migrate"
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        cache_valid_time: 3600
+
+    - name: configure docker-compose deployment
+      ansible.builtin.include_role:
+        name: compose
+
+    - name: configure gateway
+      ansible.builtin.include_role:
+        name: nginx_config
+
+    - name: configure mc client
+      ansible.builtin.include_role:
+        name: mc_config
+
+    - name: set up database backup job
+      ansible.builtin.include_role:
+        name: database_backup
+
+    - name: deploy frontend
+      ansible.builtin.include_role:
+        name: frontend
+      vars:
+        frontend_project: artcom/cheminova-frontend
+        frontend_project_name: cheminova-frontend
+        frontend_build: v1.0.3
+        frontend_route: frontend
+        frontend_config_file: config/frontend/config.json.j2
+        frontend_www_directory: "{{ static_directory }}"
+        frontend_webserver_group: "{{ webserver_gid }}"

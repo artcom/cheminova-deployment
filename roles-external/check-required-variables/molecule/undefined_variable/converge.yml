@@ -1,0 +1,23 @@
+---
+- name: Converge
+  hosts: all
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: check that role fails when required variable is undefined
+      block:
+        - name: run role
+          ansible.builtin.include_role:
+            name: check-required-variables
+          vars:
+            required_vars:
+              required: "{{ bla }}"
+
+      rescue:
+        - name: rescue failed role
+          ansible.builtin.file:
+            path: /tmp/failed
+            state: touch
+            mode: "0644"
+            modification_time: preserve
+            access_time: preserve

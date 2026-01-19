@@ -1,0 +1,45 @@
+# Root location
+location / {
+  root /usr/share/nginx/html/frontend;
+  try_files $uri /index.html;
+}
+
+location /cms/ {
+  client_max_body_size 50m;
+  limit_req zone=req_limit_per_ip burst=50 nodelay;
+  limit_conn conn_limit_per_ip 50;
+
+  proxy_pass http://cms:8000/;
+  proxy_set_header Host $http_host;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /cms/api/image-auth/ {
+    internal;
+
+    limit_req zone=req_limit_per_ip burst=100 nodelay;
+
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_pass http://cms:8000/api/image-auth/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Original-URI $request_uri;
+}
+
+location /cms/static/ {
+  add_header Cache-Control "public, max-age=7200";
+
+  alias /usr/share/nginx/html/cms-static/;
+}
+
+location /cms/media/ {
+  auth_request /cms/api/image-auth/;
+  add_header Cache-Control "public, max-age=7200";
+
+  alias /usr/share/nginx/html/cms-media/;
+}

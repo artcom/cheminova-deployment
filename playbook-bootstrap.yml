@@ -1,0 +1,12 @@
+- name: bootstrap
+  hosts: all
+
+  vars:
+    ansible_user: "{{ initial_user | default('root') }}"
+
+  tasks:
+    - name: configure deployment user
+      ansible.builtin.import_role:
+        name: user
+      vars:
+        user_name: "{{ deployment_user }}"

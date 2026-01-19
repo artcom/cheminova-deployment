@@ -1,0 +1,15 @@
+- name: create mc config directory
+  ansible.builtin.file:
+    path: "{{ mc_config_dir }}"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: copy mc config file
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ mc_config_dir }}/config.json"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0644"

@@ -1,0 +1,16 @@
+- name: copy backup script
+  ansible.builtin.template:
+    src: backup-database.j2
+    dest: /usr/local/bin/backup-database
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: create backup cron job
+  ansible.builtin.cron:
+    name: backup database
+    minute: "0"
+    hour: "2"
+    job: /usr/local/bin/backup-database
+    user: root
+    state: present

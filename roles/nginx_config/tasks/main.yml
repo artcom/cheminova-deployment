@@ -1,0 +1,79 @@
+- name: create gateway config directory
+  ansible.builtin.file:
+    path: "{{ gateway_config_dir }}"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: create gateway config conf.d directory
+  ansible.builtin.file:
+    path: "{{ gateway_config_dir }}/conf.d"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: create gateway docker-entrypoint directory
+  ansible.builtin.file:
+    path: "{{ gateway_config_dir }}/docker-entrypoint.d"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: copy dhparam.pem file
+  ansible.builtin.copy:
+    src: dhparam.pem
+    dest: "{{ gateway_config_dir }}/dhparam.pem"
+    owner: "{{ deployment_user }}"
+    group: "{{ webserver_gid }}"
+    mode: "0640"
+  notify: docker-compose up
+  when: not create_dhparam | bool
+
+- name: create dhparam.pem file
+  community.crypto.openssl_dhparam:
+    path: "{{ gateway_config_dir }}/dhparam.pem"
+    owner: "{{ deployment_user }}"
+    group: "{{ webserver_gid }}"
+    mode: "0640"
+    size: 2048
+  notify: docker-compose up
+  when: create_dhparam | bool
+
+- name: copy nginx conf
+  ansible.builtin.copy:
+    src: "{{ nginx_conf }}"
+    dest: "{{ gateway_config_dir }}/nginx.conf"
+    owner: "{{ deployment_user }}"
+    group: "{{ webserver_gid }}"
+    mode: "0640"
+  notify: docker-compose up
+
+- name: copy nginx server conf file
+  ansible.builtin.template:
+    src: "{{ server_conf }}"
+    dest: "{{ gateway_config_dir }}/conf.d/server.conf"
+    owner: "{{ deployment_user }}"
+    group: "{{ webserver_gid }}"
+    mode: "0640"
+  notify: docker-compose up
+
+- name: copy nginx locations
+  ansible.builtin.template:
+    src: "{{ locations_conf }}"
+    dest: "{{ gateway_config_dir }}/conf.d/locations.conf"
+    owner: "{{ deployment_user }}"
+    group: "{{ webserver_gid }}"
+    mode: "0640"
+  notify: docker-compose up
+
+- name: copy nginx set uid and gid script
+  ansible.builtin.template:
+    src: "{{ set_uid_and_gid_script }}"
+    dest: "{{ gateway_config_dir }}/docker-entrypoint.d/00-set-uid-and-gid.sh"
+    owner: "{{ deployment_user }}"
+    group: "{{ webserver_gid }}"
+    mode: "0750"
+  notify: docker-compose up

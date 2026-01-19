@@ -1,0 +1,5 @@
+#!/usr/bin/env ash
+
+apk --no-cache add shadow
+usermod -u {{ webserver_uid }} nginx
+groupmod -g {{ webserver_gid }} nginx

@@ -1,0 +1,6 @@
+- name: close port 80
+  community.general.ufw:
+    rule: allow
+    port: 80
+    proto: tcp
+    delete: true

@@ -1,0 +1,4 @@
+user_name: null
+user_password: null
+user_passwordless_sudo: true
+user_authorized_keys: {}

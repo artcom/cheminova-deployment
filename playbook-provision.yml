@@ -1,0 +1,100 @@
+- name: provision backend server
+  hosts: all
+
+  vars:
+    ansible_user: "{{ deployment_user }}"
+    hostname: "{{ inventory_hostname }}"
+
+  handlers:
+    - name: reboot
+      ansible.builtin.reboot:
+
+  tasks:
+    - name: stop unattended-upgrades service
+      ansible.builtin.service:
+        name: unattended-upgrades
+        state: stopped
+
+    - name: wait for 10s
+      ansible.builtin.wait_for:
+        timeout: 10
+
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: upgrade packages
+      ansible.builtin.apt:
+        upgrade: true
+      notify: reboot
+
+    - name: flush handlers for upgrades
+      ansible.builtin.meta: flush_handlers
+
+    - name: configure user
+      ansible.builtin.include_role:
+        name: user
+      vars:
+        user_name: "{{ deployment_user }}"
+
+    - name: set host name
+      ansible.builtin.hostname:
+        name: "{{ local_hostname }}"
+
+    - name: configure ssh
+      ansible.builtin.include_role:
+        name: devsec.hardening.ssh_hardening
+      vars:
+        sftp_enabled: true
+        ssh_allow_users: "{{ ssh_users }}"
+
+    - name: configure firewall
+      community.general.ufw:
+        rule: "{{ item.rule }}"
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      loop:
+        - rule: allow
+          port: "22"
+          proto: tcp
+        - rule: allow
+          port: "443"
+          proto: tcp
+
+    - name: enable firewall
+      community.general.ufw:
+        state: enabled
+
+    - name: install and configure fail2ban
+      ansible.builtin.include_role:
+        name: fail2ban
+
+    - name: install and configure docker
+      ansible.builtin.include_role:
+        name: docker
+      vars:
+        docker__users:
+          - "{{ deployment_user }}"
+        docker__default_daemon_json: |
+          "data-root": "{{ docker_data_root }}",
+          "log-driver": "journald"
+
+    - name: configure journald
+      ansible.builtin.include_role:
+        name: journald
+      vars:
+        journald_options:
+          Storage: persistent
+          RateLimitIntervalSec: "0"
+
+    - name: configure certbot
+      ansible.builtin.include_role:
+        name: certbot
+      vars:
+        certbot_user: "{{ deployment_user }}"
+        certbot_hostname: "{{ hostname }}"
+
+    - name: start unattended-upgrades service
+      ansible.builtin.service:
+        name: unattended-upgrades
+        state: started

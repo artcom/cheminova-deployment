@@ -1,0 +1,156 @@
+name: {{ compose_project_name }}
+
+services:
+  gateway:
+    image: nginx:1.29-alpine
+    ports:
+      - published: 443
+        target: 443
+    volumes:
+      - source: {{ static_volume }}
+        target: /usr/share/nginx/html/frontend
+        type: volume
+      - source: {{ cms_static_volume }}
+        target: /usr/share/nginx/html/cms-static
+        type: volume
+      - source: {{ cms_media_volume }}
+        target: /usr/share/nginx/html/cms-media
+        type: volume
+      - source: {{ gateway_config_dir }}/docker-entrypoint.d/00-set-uid-and-gid.sh
+        target: /docker-entrypoint.d/00-set-uid-and-gid.sh
+        type: bind
+        read_only: true
+      - source: {{ gateway_config_dir }}/dhparam.pem
+        target: /etc/ssl/dhparam.pem
+        type: bind
+        read_only: true
+      - source: {{ gateway_config_dir }}/nginx.conf
+        target: /etc/nginx/nginx.conf
+        type: bind
+        read_only: true
+      - source: {{ gateway_config_dir }}/conf.d/server.conf
+        target: /etc/nginx/conf.d/server.conf
+        type: bind
+        read_only: true
+      - source: {{ gateway_config_dir }}/conf.d/locations.conf
+        target: /etc/nginx/conf.d/locations/locations.conf
+        type: bind
+        read_only: true
+      - source: {{ gateway_config_dir }}/.htpasswd
+        target: /etc/nginx/.htpasswd
+        type: bind
+        read_only: true
+      - source: /etc/letsencrypt
+        target: /etc/letsencrypt
+        type: bind
+        read_only: true
+    depends_on:
+      cms:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      start_interval: 2s
+      start_period: 10s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  cms:
+    image: artcom/cheminova-backend:{{ backend_version }}
+    environment:
+      POSTGRES_USER:
+      POSTGRES_PASSWORD:
+      POSTGRES_DB:
+      POSTGRES_HOST: database
+      SECRET_KEY:
+      BASE_PATH: /cms/
+      WAGTAILADMIN_BASE_URL: "{{ wagtailadmin_base_url }}"
+      MC_CONFIG_PATH: /home/wagtail/.mc/config.json
+      BUCKET_ALIAS: {{ mc_alias }}
+      BUCKET_NAME: {{ bucket_name }}
+      DB_DUMP_PATH: {{ db_dump_path }}
+    volumes:
+      - source: {{ mc_config_dir }}/config.json
+        target: /home/wagtail/.mc/config.json
+        type: bind
+      - source: {{ cms_static_volume }}
+        target: /app/static
+        type: volume
+      - source: {{ cms_media_volume }}
+        target: /app/media
+        type: volume
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      start_interval: 2s
+      start_period: 20s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  database:
+    image: postgres:18.1-trixie
+    environment:
+      POSTGRES_USER:
+      POSTGRES_PASSWORD:
+      POSTGRES_DB:
+    volumes:
+      - source: {{ cms_database_volume }}
+        target: /var/lib/postgresql
+        type: volume
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      start_interval: 5s
+      start_period: 10s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  s3-config:
+    image: {{ mc_container_image }}
+    command:
+      [
+        "mb",
+        "--ignore-existing",
+        "{{ mc_alias }}/{{ bucket_media_backup }}",
+        "{{ mc_alias }}/{{ bucket_database_backup }}",
+      ]
+    volumes:
+      - source: config/mc/config.json
+        target: /root/.mc/config.json
+        type: bind
+    restart: on-failure
+
+  media-backup:
+    image: {{ mc_container_image }}
+    command: ["mirror", "--watch", "--remove", "/media", "{{ mc_alias }}/{{ bucket_media_backup }}"]
+    volumes:
+      - source: {{ mc_config_dir }}/config.json
+        target: /root/.mc/config.json
+        type: bind
+      - source: {{ cms_media_volume }}
+        target: /media
+        type: volume
+    depends_on:
+      cms:
+        condition: service_healthy
+      s3-config:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ls", "{{ mc_alias }}/{{ bucket_media_backup }}"]
+      start_interval: 5s
+      start_period: 10s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  {{ static_volume }}:
+  {{ cms_database_volume }}:
+  {{ cms_static_volume }}:
+  {{ cms_media_volume }}:

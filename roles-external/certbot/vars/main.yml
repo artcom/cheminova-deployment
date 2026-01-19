@@ -1,0 +1,7 @@
+required_vars:
+  certbot_config_dir: "{{ certbot_config_dir }}"
+
+certbot_snap_options:
+  dns-01:
+    - trust-plugin-with-root=ok
+  http: []

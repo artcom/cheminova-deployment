@@ -1,0 +1,26 @@
+collections:
+  - name: devsec.hardening
+    version: "10.3.0"
+
+roles:
+  - src: git@github.com:artcom/ansible-role-user.git
+    scm: git
+    version: "v1.2.5"
+    name: user
+
+  - src: git@gitlab.artcom.de:ansible-roles/certbot.git
+    scm: git
+    version: "v1.2.3"
+    name: certbot
+
+  - src: nickjj.docker
+    version: "v2.5.0"
+    name: docker
+
+  - src: nickjj.fail2ban
+    version: "v0.1.2"
+    name: fail2ban
+
+  - src: derjd.journald
+    version: "0.0.1"
+    name: journald

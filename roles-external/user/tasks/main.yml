@@ -1,0 +1,38 @@
+- name: add the user {{ user_name }}
+  ansible.builtin.user:
+    name: "{{ user_name }}"
+    groups: sudo
+    append: true
+    create_home: true
+    shell: /bin/bash
+    password: "{{ user_password | string | password_hash('sha512', 1000000 | random(seed=ansible_hostname)) }}"
+  when: user_password is not none
+
+- name: add the user {{ user_name }} without a password
+  ansible.builtin.user:
+    name: "{{ user_name }}"
+    groups: sudo
+    append: true
+    create_home: true
+    shell: /bin/bash
+  when: user_password is none
+
+- name: configure passwordless sudo
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/{{ user_name }}
+    content: "{{ user_name }} ALL=(ALL) NOPASSWD:ALL"
+    mode: 0440
+  when: user_passwordless_sudo | bool
+
+- name: Create public_keys list
+  ansible.builtin.set_fact:
+    public_keys_list: "{{ public_keys_list | default([]) + [item.value] }}"
+  with_dict: "{{ user_authorized_keys }}"
+  no_log: true
+
+- name: set ssh keys
+  ansible.posix.authorized_key:
+    user: "{{ user_name }}"
+    key: "{{ public_keys_list | join('\n') }}"
+    exclusive: true
+  when: public_keys_list is defined

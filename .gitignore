@@ -1,0 +1,4 @@
+.vagrant
+.secrets
+.ansible
+.ruff_cache

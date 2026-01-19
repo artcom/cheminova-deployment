@@ -1,0 +1,127 @@
+- name: install snapd
+  community.general.snap:
+    name: core
+
+- name: install certbot
+  community.general.snap:
+    name: certbot
+    classic: true
+    options: "{{ certbot_snap_options[certbot_challenge] }}"
+
+- name: install digitalocean dns plugin
+  community.general.snap:
+    name: certbot-dns-digitalocean
+  when: certbot_challenge == "dns-01"
+
+- name: copy certbot renew service
+  ansible.builtin.copy:
+    src: /etc/systemd/system/snap.certbot.renew.service
+    dest: /etc/systemd/system/snap.certbot.renew-on-boot.service
+    remote_src: true
+    force: false
+    owner: root
+    group: root
+    mode: "644"
+
+- name: configure certbot renew on boot service
+  community.general.ini_file:
+    path: /etc/systemd/system/snap.certbot.renew-on-boot.service
+    section: Install
+    option: WantedBy
+    value: multi-user.target
+    owner: root
+    group: root
+    mode: "644"
+
+- name: enable certbot renew on boot service
+  ansible.builtin.service:
+    name: snap.certbot.renew-on-boot.service
+    enabled: true
+
+- name: check renewal config
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/renewal/{{ certbot_hostname }}.conf"
+  register: renewal_config
+  when: certbot_challenge == "http"
+
+- name: open port 80
+  community.general.ufw:
+    rule: allow
+    port: 80
+    proto: tcp
+  when: certbot_challenge == "http" and not renewal_config.stat.exists and certbot_generate_standalone_cert | bool
+
+- name: generate certificate with http challenge
+  ansible.builtin.command:
+    cmd: "certbot certonly -d {{ certbot_hostname }} --email {{ certbot_email }} --standalone --preferred-challenges http --agree-tos --expand"
+    creates: "/etc/letsencrypt/renewal/{{ certbot_hostname }}.conf"
+  when: certbot_challenge == "http" and not renewal_config.stat.exists and certbot_generate_standalone_cert | bool
+  notify: close port 80
+
+- name: create certbot config directory
+  ansible.builtin.file:
+    path: "{{ certbot_config_dir }}"
+    state: directory
+    owner: "{{ certbot_user }}"
+    group: "{{ certbot_user }}"
+    mode: "0750"
+  when: certbot_challenge == "dns-01"
+
+- name: copy dns challenge credentials
+  ansible.builtin.copy:
+    src: "{{ certbot_dns_challenge_credentials }}"
+    dest: "{{ certbot_config_dir }}/digitalocean.ini"
+    owner: "{{ certbot_user }}"
+    group: "{{ certbot_user }}"
+    mode: "0640"
+  when: certbot_challenge == "dns-01"
+
+- name: generate certificate with dns-01 challenge
+  ansible.builtin.command:
+    cmd: "certbot certonly \
+      -d {{ certbot_hostname }} \
+      --email {{ certbot_email }} \
+      --dns-digitalocean \
+      --dns-digitalocean-credentials {{ certbot_config_dir }}/digitalocean.ini \
+      --agree-tos"
+    creates: /etc/letsencrypt/renewal
+  when: certbot_challenge == "dns-01" and certbot_generate_standalone_cert | bool
+
+- name: create letsencrypt hook directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/letsencrypt/renewal-hooks/pre
+    - /etc/letsencrypt/renewal-hooks/deploy
+    - /etc/letsencrypt/renewal-hooks/post
+  when: certbot_challenge == "http" and not certbot_generate_standalone_cert | bool
+
+- name: add pre renewal open firewall hook
+  ansible.builtin.copy:
+    src: open-firewall.sh
+    dest: /etc/letsencrypt/renewal-hooks/pre/00-open-firewall.sh
+    owner: root
+    group: root
+    mode: "750"
+  when: certbot_challenge == "http"
+
+- name: add deploy renewal reload nginx hook
+  ansible.builtin.template:
+    src: reload-nginx.sh.j2
+    dest: /etc/letsencrypt/renewal-hooks/deploy/00-reload-nginx.sh
+    owner: root
+    group: root
+    mode: "750"
+
+- name: add post renewal close firewall hook
+  ansible.builtin.copy:
+    src: close-firewall.sh
+    dest: /etc/letsencrypt/renewal-hooks/post/00-close-firewall.sh
+    owner: root
+    group: root
+    mode: "750"
+  when: certbot_challenge == "http"

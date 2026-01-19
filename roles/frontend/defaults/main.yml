@@ -1,0 +1,10 @@
+---
+frontend_project: null
+frontend_project_name: null
+frontend_build: null
+frontend_route: null
+frontend_download_directory: null
+frontend_config_file: null
+frontend_www_directory: /srv/static
+frontend_user: "{{ ansible_user }}"
+frontend_webserver_group: www-data

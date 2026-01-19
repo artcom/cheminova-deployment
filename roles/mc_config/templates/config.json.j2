@@ -1,0 +1,15 @@
+{
+  "version": "10",
+  "aliases": {
+{% for alias, config in buckets.items() %}
+    "{{ alias }}": {
+      "url": "{{ config.endpoint }}",
+      "accessKey": "{{ config.access_key }}",
+      "secretKey": "{{ config.secret_key }}",
+      "api": "s3v4",
+      "path": "auto"
+    }{% if not loop.last %},{% endif %}
+
+{% endfor %}
+  }
+}

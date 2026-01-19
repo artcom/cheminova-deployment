@@ -1,0 +1,9 @@
+---
+artifact_name: "{{ frontend_route }}_{{ frontend_build }}" # noqa var-naming[no-role-prefix]
+required_vars: # noqa var-naming[no-role-prefix]
+  frontend_project: "{{ frontend_project }}"
+  frontend_project_name: "{{ frontend_project_name }}"
+  frontend_build: "{{ frontend_build }}"
+  frontend_route: "{{ frontend_route }}"
+  frontend_download_directory: "{{ frontend_download_directory }}"
+  frontend_config_file: "{{ frontend_config_file }}"
