@@ -3,3 +3,4 @@
 .ansible
 .ruff_cache
 collections_
+inventory/hosts.yml

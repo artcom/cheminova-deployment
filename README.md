@@ -20,7 +20,8 @@ uv sync --locked
 
 ### Configure Host Variables
 
-Change variables in `inventory/hosts.yml` as described in comments, see extra information below.
+1. `cp hosts.yml.template inventory/hosts.yml`
+2. Change variables in `inventory/hosts.yml` as described in comments, see extra information below.
 
 #### Create a Django secret key
 
