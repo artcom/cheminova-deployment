@@ -120,7 +120,7 @@ services:
         "{{ mc_alias }}/{{ bucket_database_backup }}",
       ]
     volumes:
-      - source: config/mc/config.json
+      - source: {{ mc_config_dir }}/config.json
         target: /root/.mc/config.json
         type: bind
     restart: on-failure

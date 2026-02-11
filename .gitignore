@@ -2,3 +2,4 @@
 .secrets
 .ansible
 .ruff_cache
+collections_

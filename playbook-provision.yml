@@ -9,6 +9,11 @@
     - name: reboot
       ansible.builtin.reboot:
 
+    - name: restart journal
+      ansible.builtin.systemd:
+        name: systemd-journald
+        state: restarted
+
   tasks:
     - name: stop unattended-upgrades service
       ansible.builtin.service:
@@ -80,8 +85,16 @@
           "log-driver": "journald"
 
     - name: configure journald
-      ansible.builtin.include_role:
-        name: journald
+      community.general.ini_file:
+        path: /etc/systemd/journald.conf
+        section: Journal
+        option: "{{ item.key }}"
+        value: "{{ item.value }}"
+        group: root
+        owner: root
+        mode: "0644"
+      notify: restart journal
+      loop: "{{ journald_options | dict2items }}"
       vars:
         journald_options:
           Storage: persistent

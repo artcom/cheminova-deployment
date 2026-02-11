@@ -20,17 +20,17 @@ uv sync --locked
 
 ### Configure Host Variables
 
-- Change variables in `inventory/hosts.yml` as described in comments, see extra information below.
+Change variables in `inventory/hosts.yml` as described in comments, see extra information below.
 
-### Create a Django secret key
+#### Create a Django secret key
 
 ```bash
 uv run python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-### Passwords with Ansible Vault
+#### Passwords with Ansible Vault
 
-Passwords are encrypted in the Ansible vault as encrypted strings stored in `hosts.yml`.
+You are encouraged to encrypt sensitive data such as passwords using Ansible Vault. Encrypted strings are stored in `hosts.yml`.
 
 Create an encrypted variable ([Ansible docs](https://docs.ansible.com/ansible/latest/user_guide/vault.html#creating-encrypted-variables)):
 
