@@ -1,13 +1,9 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2016 Michael Gruener <michael.gruener@chaosmoon.net>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
-
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 module: acme_account
@@ -34,10 +30,10 @@ seealso:
   - module: community.crypto.acme_inspect
     description: Allows to debug problems.
 extends_documentation_fragment:
-  - community.crypto.acme.basic
-  - community.crypto.acme.account
-  - community.crypto.attributes
-  - community.crypto.attributes.actiongroup_acme
+  - community.crypto._acme.basic
+  - community.crypto._acme.account
+  - community.crypto._attributes
+  - community.crypto._attributes.actiongroup_acme
 attributes:
   check_mode:
     support: full
@@ -103,8 +99,8 @@ options:
   external_account_binding:
     description:
       - Allows to provide external account binding data during account creation.
-      - This is used by CAs like Sectigo to bind a new ACME account to an existing CA-specific account, to be able to properly
-        identify a customer.
+      - This is used by CAs like Sectigo, HARICA, or ZeroSSL to bind a new ACME account to an existing CA-specific account,
+        to be able to properly identify a customer.
       - Only used when creating a new account. Can not be specified for ACME v1.
     type: dict
     suboptions:
@@ -130,6 +126,7 @@ options:
 """
 
 EXAMPLES = r"""
+---
 - name: Make sure account exists and has given contacts. We agree to TOS.
   community.crypto.acme_account:
     account_key_src: /etc/pki/cert/private/account.key
@@ -167,171 +164,209 @@ account_uri:
 """
 
 import base64
+import typing as t
 
-from ansible_collections.community.crypto.plugins.module_utils.acme.acme import (
-    create_backend,
-    create_default_argspec,
-    ACMEClient,
-)
-
-from ansible_collections.community.crypto.plugins.module_utils.acme.account import (
+from ansible_collections.community.crypto.plugins.module_utils._acme.account import (
     ACMEAccount,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.acme.errors import (
-    ModuleFailException,
+from ansible_collections.community.crypto.plugins.module_utils._acme.acme import (
+    ACMEClient,
+    create_backend,
+    create_default_argspec,
+)
+from ansible_collections.community.crypto.plugins.module_utils._acme.errors import (
     KeyParsingError,
+    ModuleFailException,
 )
 
 
-def main():
+def main() -> t.NoReturn:
     argument_spec = create_default_argspec()
     argument_spec.update_argspec(
-        terms_agreed=dict(type='bool', default=False),
-        state=dict(type='str', required=True, choices=['absent', 'present', 'changed_key']),
-        allow_creation=dict(type='bool', default=True),
-        contact=dict(type='list', elements='str', default=[]),
-        new_account_key_src=dict(type='path'),
-        new_account_key_content=dict(type='str', no_log=True),
-        new_account_key_passphrase=dict(type='str', no_log=True),
-        external_account_binding=dict(type='dict', options=dict(
-            kid=dict(type='str', required=True),
-            alg=dict(type='str', required=True, choices=['HS256', 'HS384', 'HS512']),
-            key=dict(type='str', required=True, no_log=True),
-        ))
+        terms_agreed={"type": "bool", "default": False},
+        state={
+            "type": "str",
+            "required": True,
+            "choices": ["absent", "present", "changed_key"],
+        },
+        allow_creation={"type": "bool", "default": True},
+        contact={"type": "list", "elements": "str", "default": []},
+        new_account_key_src={"type": "path"},
+        new_account_key_content={"type": "str", "no_log": True},
+        new_account_key_passphrase={"type": "str", "no_log": True},
+        external_account_binding={
+            "type": "dict",
+            "options": {
+                "kid": {"type": "str", "required": True},
+                "alg": {
+                    "type": "str",
+                    "required": True,
+                    "choices": ["HS256", "HS384", "HS512"],
+                },
+                "key": {"type": "str", "required": True, "no_log": True},
+            },
+        },
     )
     argument_spec.update(
-        mutually_exclusive=(
-            ['new_account_key_src', 'new_account_key_content'],
-        ),
-        required_if=(
+        mutually_exclusive=[("new_account_key_src", "new_account_key_content")],
+        required_if=[
             # Make sure that for state == changed_key, one of
             # new_account_key_src and new_account_key_content are specified
-            ['state', 'changed_key', ['new_account_key_src', 'new_account_key_content'], True],
-        ),
+            (
+                "state",
+                "changed_key",
+                ["new_account_key_src", "new_account_key_content"],
+                True,
+            ),
+        ],
     )
     module = argument_spec.create_ansible_module(supports_check_mode=True)
-    backend = create_backend(module, True)
+    backend = create_backend(module, needs_acme_v2=True)
 
-    if module.params['external_account_binding']:
+    if module.params["external_account_binding"]:
         # Make sure padding is there
-        key = module.params['external_account_binding']['key']
+        key: str = module.params["external_account_binding"]["key"]
         if len(key) % 4 != 0:
-            key = key + ('=' * (4 - (len(key) % 4)))
+            key = key + ("=" * (4 - (len(key) % 4)))
         # Make sure key is Base64 encoded
         try:
             base64.urlsafe_b64decode(key)
         except Exception as e:
-            module.fail_json(msg='Key for external_account_binding must be Base64 URL encoded (%s)' % e)
-        module.params['external_account_binding']['key'] = key
+            module.fail_json(
+                msg=f"Key for external_account_binding must be Base64 URL encoded ({e})"
+            )
+        module.params["external_account_binding"]["key"] = key
 
     try:
-        client = ACMEClient(module, backend)
-        account = ACMEAccount(client)
+        client = ACMEClient(module=module, backend=backend)
+        account = ACMEAccount(client=client)
         changed = False
-        state = module.params.get('state')
-        diff_before = {}
-        diff_after = {}
-        if state == 'absent':
+        state: t.Literal["present", "absent", "changed_key"] = module.params["state"]
+        diff_before: dict[str, t.Any] = {}
+        diff_after: dict[str, t.Any] = {}
+        if state == "absent":
             created, account_data = account.setup_account(allow_creation=False)
             if account_data:
                 diff_before = dict(account_data)
-                diff_before['public_account_key'] = client.account_key_data['jwk']
+                if client.account_key_data:
+                    diff_before["public_account_key"] = client.account_key_data["jwk"]
             if created:
-                raise AssertionError('Unwanted account creation')
+                raise AssertionError("Unwanted account creation")  # pragma: no cover
             if account_data is not None:
                 # Account is not yet deactivated
                 if not module.check_mode:
                     # Deactivate it
-                    payload = {
-                        'status': 'deactivated'
-                    }
-                    result, info = client.send_signed_request(
-                        client.account_uri, payload, error_msg='Failed to deactivate account', expected_status_codes=[200])
+                    deactivate_payload = {"status": "deactivated"}
+                    result, _info = client.send_signed_request(
+                        t.cast(str, client.account_uri),
+                        deactivate_payload,
+                        error_msg="Failed to deactivate account",
+                        expected_status_codes=[200],
+                    )
                 changed = True
-        elif state == 'present':
-            allow_creation = module.params.get('allow_creation')
-            contact = [str(v) for v in module.params.get('contact')]
-            terms_agreed = module.params.get('terms_agreed')
-            external_account_binding = module.params.get('external_account_binding')
+        elif state == "present":
+            allow_creation = module.params.get("allow_creation")
+            contact = [str(v) for v in module.params.get("contact")]
+            terms_agreed = module.params.get("terms_agreed")
+            external_account_binding = module.params.get("external_account_binding")
             created, account_data = account.setup_account(
-                contact,
+                contact=contact,
                 terms_agreed=terms_agreed,
                 allow_creation=allow_creation,
                 external_account_binding=external_account_binding,
             )
             if account_data is None:
-                raise ModuleFailException(msg='Account does not exist or is deactivated.')
+                raise ModuleFailException(
+                    msg="Account does not exist or is deactivated."
+                )
             if created:
                 diff_before = {}
             else:
                 diff_before = dict(account_data)
-                diff_before['public_account_key'] = client.account_key_data['jwk']
+                if client.account_key_data:
+                    diff_before["public_account_key"] = client.account_key_data["jwk"]
             updated = False
             if not created:
-                updated, account_data = account.update_account(account_data, contact)
+                updated, account_data = account.update_account(
+                    account_data=account_data, contact=contact
+                )
             changed = created or updated
             diff_after = dict(account_data)
-            diff_after['public_account_key'] = client.account_key_data['jwk']
-        elif state == 'changed_key':
+            if client.account_key_data:
+                diff_after["public_account_key"] = client.account_key_data["jwk"]
+        elif state == "changed_key":
             # Parse new account key
             try:
                 new_key_data = client.parse_key(
-                    module.params.get('new_account_key_src'),
-                    module.params.get('new_account_key_content'),
-                    passphrase=module.params.get('new_account_key_passphrase'),
+                    key_file=module.params.get("new_account_key_src"),
+                    key_content=module.params.get("new_account_key_content"),
+                    passphrase=module.params.get("new_account_key_passphrase"),
                 )
             except KeyParsingError as e:
-                raise ModuleFailException("Error while parsing new account key: {msg}".format(msg=e.msg))
+                raise ModuleFailException(
+                    f"Error while parsing new account key: {e.msg}"
+                ) from e
             # Verify that the account exists and has not been deactivated
             created, account_data = account.setup_account(allow_creation=False)
             if created:
-                raise AssertionError('Unwanted account creation')
+                raise AssertionError("Unwanted account creation")  # pragma: no cover
             if account_data is None:
-                raise ModuleFailException(msg='Account does not exist or is deactivated.')
+                raise ModuleFailException(
+                    msg="Account does not exist or is deactivated."
+                )
             diff_before = dict(account_data)
-            diff_before['public_account_key'] = client.account_key_data['jwk']
+            if client.account_key_data:
+                diff_before["public_account_key"] = client.account_key_data["jwk"]
             # Now we can start the account key rollover
             if not module.check_mode:
                 # Compose inner signed message
                 # https://tools.ietf.org/html/rfc8555#section-7.3.5
-                url = client.directory['keyChange']
+                url = client.directory["keyChange"]
                 protected = {
-                    "alg": new_key_data['alg'],
-                    "jwk": new_key_data['jwk'],
+                    "alg": new_key_data["alg"],
+                    "jwk": new_key_data["jwk"],
                     "url": url,
                 }
-                payload = {
+                change_key_payload = {
                     "account": client.account_uri,
-                    "newKey": new_key_data['jwk'],  # specified in draft 12 and older
+                    "newKey": new_key_data["jwk"],  # specified in draft 12 and older
                     "oldKey": client.account_jwk,  # specified in draft 13 and newer
                 }
-                data = client.sign_request(protected, payload, new_key_data)
+                data = client.sign_request(
+                    protected=protected,
+                    payload=change_key_payload,
+                    key_data=new_key_data,
+                )
                 # Send request and verify result
-                result, info = client.send_signed_request(
-                    url, data, error_msg='Failed to rollover account key', expected_status_codes=[200])
-                if module._diff:
+                result, _info = client.send_signed_request(
+                    url,
+                    data,
+                    error_msg="Failed to rollover account key",
+                    expected_status_codes=[200],
+                )
+                if module._diff:  # pylint: disable=protected-access
                     client.account_key_data = new_key_data
-                    client.account_jws_header['alg'] = new_key_data['alg']
-                    diff_after = account.get_account_data()
-            elif module._diff:
+                    if client.account_jws_header:
+                        client.account_jws_header["alg"] = new_key_data["alg"]
+                    diff_after = account.get_account_data() or {}
+            elif module._diff:  # pylint: disable=protected-access
                 # Kind of fake diff_after
                 diff_after = dict(diff_before)
-            diff_after['public_account_key'] = new_key_data['jwk']
+            diff_after["public_account_key"] = new_key_data["jwk"]
             changed = True
         result = {
-            'changed': changed,
-            'account_uri': client.account_uri,
+            "changed": changed,
+            "account_uri": client.account_uri,
         }
-        if module._diff:
-            result['diff'] = {
-                'before': diff_before,
-                'after': diff_after,
+        if module._diff:  # pylint: disable=protected-access
+            result["diff"] = {
+                "before": diff_before,
+                "after": diff_after,
             }
         module.exit_json(**result)
     except ModuleFailException as e:
-        e.do_fail(module)
+        e.do_fail(module=module)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

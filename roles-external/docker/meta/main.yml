@@ -1,5 +1,4 @@
 ---
-
 galaxy_info:
   namespace: "nickjj"
   role_name: "docker"
@@ -11,12 +10,12 @@ galaxy_info:
   platforms:
     - name: "Ubuntu"
       versions:
-        - "focal"
         - "jammy"
+        - "noble"
     - name: "Debian"
       versions:
-        - "bullseye"
         - "bookworm"
+        - "trixie"
 
   galaxy_tags:
     - "containers"
@@ -26,3 +25,6 @@ galaxy_info:
     - "system"
 
 dependencies: []
+
+collections:
+  - "community.docker"

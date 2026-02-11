@@ -1,16 +1,11 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2024 Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
-
-DOCUMENTATION = '''
----
+DOCUMENTATION = """
 module: acme_certificate_order_validate
 author: Felix Fontein (@felixfontein)
 version_added: 2.24.0
@@ -19,9 +14,8 @@ description:
   - Validates pending authorizations of an ACME v2 order.
     This is the second to last step of obtaining a new certificate with the
     L(ACME protocol,https://tools.ietf.org/html/rfc8555) from a Certificate
-    Authority such as L(Let's Encrypt,https://letsencrypt.org/) or
-    L(Buypass,https://www.buypass.com/). This module does not support ACME v1, the
-    original version of the ACME protocol before standardization.
+    Authority such as L(Let's Encrypt,https://letsencrypt.org/).
+    This module does not support ACME v1, the original version of the ACME protocol before standardization.
   - This module needs to be used in conjunction with the
     M(community.crypto.acme_certificate_order_create) and
     M(community.crypto.acme_certificate_order_finalize) modules.
@@ -36,10 +30,6 @@ seealso:
     description: Documentation for the Let's Encrypt Certification Authority.
                  Provides useful information for example on rate limits.
     link: https://letsencrypt.org/docs/
-  - name: Buypass Go SSL
-    description: Documentation for the Buypass Certification Authority.
-                 Provides useful information for example on rate limits.
-    link: https://www.buypass.com/ssl/products/acme
   - name: Automatic Certificate Management Environment (ACME)
     description: The specification of the ACME protocol (RFC 8555).
     link: https://tools.ietf.org/html/rfc8555
@@ -53,11 +43,11 @@ seealso:
   - module: community.crypto.acme_certificate_deactivate_authz
     description: Allows to deactivate (invalidate) ACME v2 orders.
 extends_documentation_fragment:
-  - community.crypto.acme.basic
-  - community.crypto.acme.account
-  - community.crypto.attributes
-  - community.crypto.attributes.actiongroup_acme
-  - community.crypto.attributes.files
+  - community.crypto._acme.basic
+  - community.crypto._acme.account
+  - community.crypto._attributes
+  - community.crypto._attributes.actiongroup_acme
+  - community.crypto._attributes.files
 attributes:
   check_mode:
     support: none
@@ -94,9 +84,10 @@ options:
          concern."
     type: bool
     default: true
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
+---
 ### Example with HTTP-01 challenge ###
 
 - name: Create a challenge for sample.com using a account key from a variable
@@ -144,12 +135,12 @@ EXAMPLES = r'''
     fullchain_dest: /etc/httpd/ssl/sample.com-fullchain.crt
     chain_dest: /etc/httpd/ssl/sample.com-intermediate.crt
 
+---
 ### Example with DNS challenge against production ACME server ###
 
 - name: Create a challenge for sample.com using a account key file.
   community.crypto.acme_certificate_order_create:
     acme_directory: https://acme-v01.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     csr: /etc/pki/cert/csr/sample.com.csr
   register: sample_com_challenge
@@ -172,7 +163,6 @@ EXAMPLES = r'''
 - name: Let the challenge be validated
   community.crypto.acme_certificate_order_validate:
     acme_directory: https://acme-v01.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     order_uri: "{{ sample_com_challenge.order_uri }}"
     challenge: dns-01
@@ -180,16 +170,15 @@ EXAMPLES = r'''
 - name: Retrieve the cert and intermediate certificate
   community.crypto.acme_certificate_order_finalize:
     acme_directory: https://acme-v01.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     csr: /etc/pki/cert/csr/sample.com.csr
     order_uri: "{{ sample_com_challenge.order_uri }}"
     cert_dest: /etc/httpd/ssl/sample.com.crt
     fullchain_dest: /etc/httpd/ssl/sample.com-fullchain.crt
     chain_dest: /etc/httpd/ssl/sample.com-intermediate.crt
-'''
+"""
 
-RETURN = '''
+RETURN = """
 account_uri:
   description: ACME account URI.
   returned: success
@@ -232,37 +221,40 @@ validating_challenges:
         - The URL of the challenge object.
       type: str
       returned: always
-'''
+"""
 
-from ansible_collections.community.crypto.plugins.module_utils.acme.acme import (
+import typing as t
+
+from ansible_collections.community.crypto.plugins.module_utils._acme.acme import (
     create_backend,
     create_default_argspec,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.acme.errors import (
+from ansible_collections.community.crypto.plugins.module_utils._acme.certificate import (
+    ACMECertificateClient,
+)
+from ansible_collections.community.crypto.plugins.module_utils._acme.errors import (
     ModuleFailException,
 )
 
-from ansible_collections.community.crypto.plugins.module_utils.acme.certificate import (
-    ACMECertificateClient,
-)
+if t.TYPE_CHECKING:
+    from ansible_collections.community.crypto.plugins.module_utils._acme.challenges import (  # pragma: no cover
+        Authorization,
+    )
 
 
-def main():
+def main() -> t.NoReturn:
     argument_spec = create_default_argspec(with_certificate=False)
     argument_spec.update_argspec(
-        order_uri=dict(type='str', required=True),
-        challenge=dict(type='str', choices=['http-01', 'dns-01', 'tls-alpn-01']),
-        deactivate_authzs=dict(type='bool', default=True),
+        order_uri={"type": "str", "required": True},
+        challenge={"type": "str", "choices": ["http-01", "dns-01", "tls-alpn-01"]},
+        deactivate_authzs={"type": "bool", "default": True},
     )
     module = argument_spec.create_ansible_module()
-    if module.params['acme_version'] == 1:
-        module.fail_json('The module does not support acme_version=1')
 
-    backend = create_backend(module, False)
+    backend = create_backend(module, needs_acme_v2=False)
 
     try:
-        client = ACMECertificateClient(module, backend)
+        client = ACMECertificateClient(module=module, backend=backend)
         done = False
         order = None
         try:
@@ -276,34 +268,44 @@ def main():
             # Step 3: figure out challenges to use
             challenges = {}
             for authz in pending_authzs:
-                challenges[authz.combined_identifier] = module.params['challenge']
+                challenges[authz.combined_identifier] = module.params["challenge"]
 
             missing_challenge_authzs = [k for k, v in challenges.items() if v is None]
             if missing_challenge_authzs:
+                missing_challenge_authzs_str = ", ".join(
+                    sorted(missing_challenge_authzs)
+                )
                 raise ModuleFailException(
-                    'The challenge parameter must be supplied if there are pending authorizations.'
-                    ' The following authorizations are pending: {missing_challenge_authzs}'.format(
-                        missing_challenge_authzs=', '.join(sorted(missing_challenge_authzs)),
-                    )
+                    "The challenge parameter must be supplied if there are pending authorizations."
+                    f" The following authorizations are pending: {missing_challenge_authzs_str}"
                 )
 
             bad_challenge_authzs = [
-                authz.combined_identifier for authz in pending_authzs
-                if authz.find_challenge(challenges[authz.combined_identifier]) is None
+                authz.combined_identifier
+                for authz in pending_authzs
+                if authz.find_challenge(
+                    challenge_type=challenges[authz.combined_identifier]
+                )
+                is None
             ]
             if bad_challenge_authzs:
-                raise ModuleFailException(
-                    'The following authorizations do not support the selected challenges: {authz_challenges_pairs}'.format(
-                        authz_challenges_pairs=', '.join(sorted(
-                            '{authz} with {challenge}'.format(authz=authz, challenge=challenges[authz])
-                            for authz in bad_challenge_authzs
-                        )),
+                authz_challenges_pairs = ", ".join(
+                    sorted(
+                        f"{authz} with {challenges[authz]}"
+                        for authz in bad_challenge_authzs
                     )
                 )
+                raise ModuleFailException(
+                    f"The following authorizations do not support the selected challenges: {authz_challenges_pairs}"
+                )
+
+            def is_pending(authz: Authorization) -> bool:
+                challenge_name = challenges[authz.combined_identifier]
+                challenge_obj = authz.find_challenge(challenge_type=challenge_name)
+                return challenge_obj is not None and challenge_obj.status == "pending"
 
             really_pending_authzs = [
-                authz for authz in pending_authzs
-                if authz.find_challenge(challenges[authz.combined_identifier]).status == 'pending'
+                authz for authz in pending_authzs if is_pending(authz)
             ]
 
             # Step 4: validate pending authorizations
@@ -315,25 +317,25 @@ def main():
 
             done = True
         finally:
-            if order and module.params['deactivate_authzs'] and not done:
+            if order and module.params["deactivate_authzs"] and not done:
                 client.deactivate_authzs(order)
         module.exit_json(
             changed=len(authzs_with_challenges_to_wait_for) > 0,
             account_uri=client.client.account_uri,
             validating_challenges=[
-                dict(
-                    identifier=authz.identifier,
-                    identifier_type=authz.identifier_type,
-                    authz_url=authz.url,
-                    challenge_type=challenge_type,
-                    challenge_url=challenge.url,
-                )
+                {
+                    "identifier": authz.identifier,
+                    "identifier_type": authz.identifier_type,
+                    "authz_url": authz.url,
+                    "challenge_type": challenge_type,
+                    "challenge_url": challenge.url if challenge else None,
+                }
                 for authz, challenge_type, challenge in authzs_with_challenges_to_wait_for
             ],
         )
     except ModuleFailException as e:
-        e.do_fail(module)
+        e.do_fail(module=module)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

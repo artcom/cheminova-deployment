@@ -6,20 +6,15 @@
 - hosts: localhost
   tasks:
     - name: Show Python info
-      debug:
+      ansible.builtin.debug:
         var: ansible_python
 
     - name: Register cryptography version
-      command: "{{ ansible_python.executable }} -c 'import cryptography; print(cryptography.__version__)'"
+      ansible.builtin.command: "{{ ansible_python.executable }} -c 'import cryptography; print(cryptography.__version__)'"
       register: cryptography_version
 
-    - name: Register pyOpenSSL version
-      command: "{{ ansible_python.executable }} -c 'import OpenSSL; print(OpenSSL.__version__)'"
-      ignore_errors: true
-      register: pyopenssl_version
-
     - name: Determine output directory
-      set_fact:
+      ansible.builtin.set_fact:
         output_path: "{{ 'output-%0x' % ((2**32) | random) }}"
 
     - name: Find all roles
@@ -36,13 +31,13 @@
         state: directory
 
     - block:
-      - name: Include all roles
-        ansible.builtin.include_role:
-          name: "{{ item }}"
-        loop: "{{ result.files | map(attribute='path') | map('regex_replace', '.*/', '') | sort }}"
+        - name: Include all roles
+          ansible.builtin.include_role:
+            name: "{{ item }}"
+          loop: "{{ result.files | map(attribute='path') | map('regex_replace', '.*/', '') | sort }}"
 
       always:
-      - name: Remove output directory
-        ansible.builtin.file:
-          path: "{{ output_path }}"
-          state: absent
+        - name: Remove output directory
+          ansible.builtin.file:
+            path: "{{ output_path }}"
+            state: absent

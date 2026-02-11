@@ -1,13 +1,9 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2021, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
-
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 module: openssl_publickey_info
@@ -16,14 +12,13 @@ description:
   - This module allows one to query information on OpenSSL public keys.
   - It uses the cryptography python library to interact with OpenSSL.
 version_added: 1.7.0
-requirements:
-  - cryptography >= 1.2.3
 author:
   - Felix Fontein (@felixfontein)
 extends_documentation_fragment:
-  - community.crypto.attributes
-  - community.crypto.attributes.info_module
-  - community.crypto.attributes.idempotent_not_modify_state
+  - community.crypto._attributes
+  - community.crypto._attributes.info_module
+  - community.crypto._attributes.idempotent_not_modify_state
+  - community.crypto._cryptography_dep.minimum
 options:
   path:
     description:
@@ -40,6 +35,9 @@ options:
       - Determines which crypto backend to use.
       - The default choice is V(auto), which tries to use C(cryptography) if available.
       - If set to V(cryptography), will try to use the L(cryptography,https://cryptography.io/) library.
+      - Note that with community.crypto 3.0.0, all values behave the same.
+        This option will be deprecated in a later version.
+        We recommend to not set it explicitly.
     type: str
     default: auto
     choices: [auto, cryptography]
@@ -53,6 +51,7 @@ seealso:
 """
 
 EXAMPLES = r"""
+---
 - name: Generate an OpenSSL private key with the default values (4096 bits, RSA)
   community.crypto.openssl_privatekey:
     path: /etc/ssl/private/ansible.com.pem
@@ -152,64 +151,63 @@ public_data:
       returned: When RV(type=DSA) or RV(type=ECC)
 """
 
+import typing as t
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.common.text.converters import to_native
 
-from ansible_collections.community.crypto.plugins.module_utils.crypto.basic import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.basic import (
     OpenSSLObjectError,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.module_backends.publickey_info import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.publickey_info import (
     PublicKeyParseError,
     select_backend,
 )
 
 
-def main():
+def main() -> t.NoReturn:
     module = AnsibleModule(
-        argument_spec=dict(
-            path=dict(type='path'),
-            content=dict(type='str', no_log=True),
-            select_crypto_backend=dict(type='str', default='auto', choices=['auto', 'cryptography']),
-        ),
-        required_one_of=(
-            ['path', 'content'],
-        ),
-        mutually_exclusive=(
-            ['path', 'content'],
-        ),
+        argument_spec={
+            "path": {"type": "path"},
+            "content": {"type": "str", "no_log": True},
+            "select_crypto_backend": {
+                "type": "str",
+                "default": "auto",
+                "choices": ["auto", "cryptography"],
+            },
+        },
+        required_one_of=(["path", "content"],),
+        mutually_exclusive=(["path", "content"],),
         supports_check_mode=True,
     )
 
-    result = dict(
-        can_load_key=False,
-        can_parse_key=False,
-        key_is_consistent=None,
-    )
+    result = {
+        "can_load_key": False,
+        "can_parse_key": False,
+        "key_is_consistent": None,
+    }
 
-    if module.params['content'] is not None:
-        data = module.params['content'].encode('utf-8')
+    if module.params["content"] is not None:
+        data = module.params["content"].encode("utf-8")
     else:
         try:
-            with open(module.params['path'], 'rb') as f:
+            with open(module.params["path"], "rb") as f:
                 data = f.read()
         except (IOError, OSError) as e:
-            module.fail_json(msg='Error while reading public key file from disk: {0}'.format(e), **result)
+            module.fail_json(
+                msg=f"Error while reading public key file from disk: {e}",
+                **result,  # type: ignore
+            )
 
-    backend, module_backend = select_backend(
-        module,
-        module.params['select_crypto_backend'],
-        data)
+    module_backend = select_backend(module=module, content=data)
 
     try:
         result.update(module_backend.get_info())
         module.exit_json(**result)
     except PublicKeyParseError as exc:
         result.update(exc.result)
-        module.fail_json(msg=exc.error_message, **result)
+        module.fail_json(msg=exc.error_message, **result)  # type: ignore
     except OpenSSLObjectError as exc:
-        module.fail_json(msg=to_native(exc))
+        module.fail_json(msg=str(exc))
 
 
 if __name__ == "__main__":

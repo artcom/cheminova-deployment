@@ -8,44 +8,44 @@
 # and should not be used as examples of how to write Ansible roles #
 ####################################################################
 
-- set_fact:
+- ansible.builtin.set_fact:
     skip_tests: false
     has_get_certificate_chain: >-
       {{ ansible_facts.python_version is version('3.10.0', '>=') }}
 
 - block:
 
-  - name: Get servers certificate with backend auto-detection
-    get_certificate:
-      host: "{{ httpbin_host }}"
-      port: 443
-      asn1_base64: "{{ true if ansible_version.full is version('2.18', '>=') else omit }}"
-    ignore_errors: true
-    register: result
+    - name: Get servers certificate with backend auto-detection
+      community.crypto.get_certificate:
+        host: "{{ httpbin_host }}"
+        port: 443
+        asn1_base64: "{{ true if ansible_version.full is version('2.18', '>=') else omit }}"
+      ignore_errors: true
+      register: result
 
-  - set_fact:
-      skip_tests: |
-        {{
-          result is failed and (
-            'error: [Errno 1] _ssl.c:492: error:14094410:SSL routines:SSL3_READ_BYTES:sslv3 alert handshake failure' in result.msg
-            or
-            'error: _ssl.c:314: Invalid SSL protocol variant specified.' in result.msg
-          )
-        }}
+    - ansible.builtin.set_fact:
+        skip_tests: |
+          {{
+            result is failed and (
+              'error: [Errno 1] _ssl.c:492: error:14094410:SSL routines:SSL3_READ_BYTES:sslv3 alert handshake failure' in result.msg
+              or
+              'error: _ssl.c:314: Invalid SSL protocol variant specified.' in result.msg
+            )
+          }}
 
-  - assert:
-      that:
-        - result is success or skip_tests
+    - ansible.builtin.assert:
+        that:
+          - result is success or skip_tests
 
-  when: cryptography_version.stdout is version('1.6', '>=')
+  when: cryptography_version is version('3.3', '>=')
 
 - block:
 
-  - include_tasks: ../tests/validate.yml
-    vars:
-      select_crypto_backend: cryptography
+    - ansible.builtin.include_tasks: ../tests/validate.yml
+      vars:
+        select_crypto_backend: cryptography
 
   # The module doesn't work with CentOS 6. Since the pyOpenSSL installed there is too old,
   # we never noticed before. This becomes a problem with the new cryptography backend,
   # since there is a new enough cryptography version...
-  when: cryptography_version.stdout is version('1.6', '>=') and not skip_tests
+  when: cryptography_version is version('1.6', '>=') and not skip_tests

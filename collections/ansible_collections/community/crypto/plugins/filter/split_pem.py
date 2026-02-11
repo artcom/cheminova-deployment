@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2022, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 name: split_pem
@@ -24,6 +21,7 @@ options:
 """
 
 EXAMPLES = r"""
+---
 - name: Print all CA certificates
   ansible.builtin.debug:
     msg: '{{ item }}'
@@ -39,26 +37,30 @@ _value:
   elements: string
 """
 
+from collections.abc import Callable
+
 from ansible.errors import AnsibleFilterError
-from ansible.module_utils.six import string_types
 from ansible.module_utils.common.text.converters import to_text
 
-from ansible_collections.community.crypto.plugins.module_utils.crypto.pem import split_pem_list
+from ansible_collections.community.crypto.plugins.module_utils._crypto.pem import (
+    split_pem_list,
+)
 
 
-def split_pem_filter(data):
-    '''Split PEM file.'''
-    if not isinstance(data, string_types):
-        raise AnsibleFilterError('The community.crypto.split_pem input must be a text type, not %s' % type(data))
+def split_pem_filter(data: str | bytes) -> list[str]:
+    """Split PEM file."""
+    if not isinstance(data, (str, bytes)):
+        raise AnsibleFilterError(
+            f"The community.crypto.split_pem input must be a text type, not {type(data)}"
+        )
 
-    data = to_text(data)
-    return split_pem_list(data)
+    return split_pem_list(to_text(data))
 
 
-class FilterModule(object):
-    '''Ansible jinja2 filters'''
+class FilterModule:
+    """Ansible jinja2 filters"""
 
-    def filters(self):
+    def filters(self) -> dict[str, Callable]:
         return {
-            'split_pem': split_pem_filter,
+            "split_pem": split_pem_filter,
         }

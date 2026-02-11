@@ -1,13 +1,9 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2021 Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
-
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 module: crypto_info
@@ -19,13 +15,14 @@ description:
   - The current version retrieves information on the L(Python cryptography library, https://cryptography.io/) available to
     Ansible modules, and on the OpenSSL binary C(openssl) found in the path.
 extends_documentation_fragment:
-  - community.crypto.attributes
-  - community.crypto.attributes.info_module
-  - community.crypto.attributes.idempotent_not_modify_state
+  - community.crypto._attributes
+  - community.crypto._attributes.info_module
+  - community.crypto._attributes.idempotent_not_modify_state
 options: {}
 """
 
 EXAMPLES = r"""
+---
 - name: Retrieve information
   community.crypto.crypto_info:
     account_key_src: /etc/pki/cert/private/account.key
@@ -154,28 +151,15 @@ openssl:
 """
 
 import traceback
+import typing as t
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.crypto.plugins.module_utils.crypto.basic import (
-    CRYPTOGRAPHY_HAS_EC,
-    CRYPTOGRAPHY_HAS_EC_SIGN,
-    CRYPTOGRAPHY_HAS_ED25519,
-    CRYPTOGRAPHY_HAS_ED25519_SIGN,
-    CRYPTOGRAPHY_HAS_ED448,
-    CRYPTOGRAPHY_HAS_ED448_SIGN,
-    CRYPTOGRAPHY_HAS_DSA,
-    CRYPTOGRAPHY_HAS_DSA_SIGN,
-    CRYPTOGRAPHY_HAS_RSA,
-    CRYPTOGRAPHY_HAS_RSA_SIGN,
-    CRYPTOGRAPHY_HAS_X25519,
-    CRYPTOGRAPHY_HAS_X25519_FULL,
-    CRYPTOGRAPHY_HAS_X448,
-    HAS_CRYPTOGRAPHY,
-)
-
+CRYPTOGRAPHY_VERSION: str | None
+CRYPTOGRAPHY_IMP_ERR: str | None
 try:
     import cryptography
+    import cryptography.hazmat.primitives.asymmetric
     from cryptography.exceptions import UnsupportedAlgorithm
 
     try:
@@ -183,151 +167,245 @@ try:
         # only got added in 0.2, so let's guard the import
         from cryptography.exceptions import InternalError as CryptographyInternalError
     except ImportError:
-        CryptographyInternalError = Exception
+        CryptographyInternalError = Exception  # type: ignore
 except ImportError:
-    UnsupportedAlgorithm = Exception
-    CryptographyInternalError = Exception
-    CRYPTOGRAPHY_VERSION = None
-    CRYPTOGRAPHY_IMP_ERR = traceback.format_exc()
+    UnsupportedAlgorithm = Exception  # type: ignore
+    CryptographyInternalError = Exception  # type: ignore
+    HAS_CRYPTOGRAPHY = False
+    CRYPTOGRAPHY_VERSION = None  # pylint: disable=invalid-name
+    CRYPTOGRAPHY_IMP_ERR = traceback.format_exc()  # pylint: disable=invalid-name
 else:
-    CRYPTOGRAPHY_VERSION = cryptography.__version__
-    CRYPTOGRAPHY_IMP_ERR = None
+    HAS_CRYPTOGRAPHY = True
+    CRYPTOGRAPHY_VERSION = cryptography.__version__  # pylint: disable=invalid-name
+    CRYPTOGRAPHY_IMP_ERR = None  # pylint: disable=invalid-name
 
 
 CURVES = (
-    ('secp224r1', 'SECP224R1'),
-    ('secp256k1', 'SECP256K1'),
-    ('secp256r1', 'SECP256R1'),
-    ('secp384r1', 'SECP384R1'),
-    ('secp521r1', 'SECP521R1'),
-    ('secp192r1', 'SECP192R1'),
-    ('sect163k1', 'SECT163K1'),
-    ('sect163r2', 'SECT163R2'),
-    ('sect233k1', 'SECT233K1'),
-    ('sect233r1', 'SECT233R1'),
-    ('sect283k1', 'SECT283K1'),
-    ('sect283r1', 'SECT283R1'),
-    ('sect409k1', 'SECT409K1'),
-    ('sect409r1', 'SECT409R1'),
-    ('sect571k1', 'SECT571K1'),
-    ('sect571r1', 'SECT571R1'),
-    ('brainpoolP256r1', 'BrainpoolP256R1'),
-    ('brainpoolP384r1', 'BrainpoolP384R1'),
-    ('brainpoolP512r1', 'BrainpoolP512R1'),
+    ("secp224r1", "SECP224R1"),
+    ("secp256k1", "SECP256K1"),
+    ("secp256r1", "SECP256R1"),
+    ("secp384r1", "SECP384R1"),
+    ("secp521r1", "SECP521R1"),
+    ("secp192r1", "SECP192R1"),
+    ("sect163k1", "SECT163K1"),
+    ("sect163r2", "SECT163R2"),
+    ("sect233k1", "SECT233K1"),
+    ("sect233r1", "SECT233R1"),
+    ("sect283k1", "SECT283K1"),
+    ("sect283r1", "SECT283R1"),
+    ("sect409k1", "SECT409K1"),
+    ("sect409r1", "SECT409R1"),
+    ("sect571k1", "SECT571K1"),
+    ("sect571r1", "SECT571R1"),
+    ("brainpoolP256r1", "BrainpoolP256R1"),
+    ("brainpoolP384r1", "BrainpoolP384R1"),
+    ("brainpoolP512r1", "BrainpoolP512R1"),
 )
 
 
-def add_crypto_information(module):
-    result = {}
-    result['python_cryptography_installed'] = HAS_CRYPTOGRAPHY
+def add_crypto_information(module: AnsibleModule) -> dict[str, t.Any]:
+    result: dict[str, t.Any] = {}
+    result["python_cryptography_installed"] = HAS_CRYPTOGRAPHY
     if not HAS_CRYPTOGRAPHY:
-        result['python_cryptography_import_error'] = CRYPTOGRAPHY_IMP_ERR
+        result["python_cryptography_import_error"] = CRYPTOGRAPHY_IMP_ERR
         return result
 
-    has_ed25519 = CRYPTOGRAPHY_HAS_ED25519
-    if has_ed25519:
+    # Test for DSA
+    has_dsa = False
+    has_dsa_sign = False
+    try:
+        # added in 0.5 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/dsa/
+        from cryptography.hazmat.primitives.asymmetric import dsa
+
+        has_dsa = True
         try:
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-            Ed25519PrivateKey.from_private_bytes(b'')
+            # added later in 1.5
+            dsa.DSAPrivateKey.sign  # noqa: B018 # pylint: disable=pointless-statement
+            has_dsa_sign = True
+        except AttributeError:
+            pass
+    except ImportError:
+        pass
+
+    # Test for RSA
+    has_rsa = False
+    has_rsa_sign = False
+    try:
+        # added in 0.5 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        has_rsa = True
+        try:
+            # added later in 1.4
+            rsa.RSAPrivateKey.sign  # noqa: B018 # pylint: disable=pointless-statement
+            has_rsa_sign = True
+        except AttributeError:
+            pass
+    except ImportError:
+        pass
+
+    # Test for Ed25519
+    has_ed25519 = False
+    has_ed25519_sign = False
+    try:
+        # added in 2.6 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ed25519/
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+
+        try:
+            ed25519.Ed25519PrivateKey.from_private_bytes(b"")
         except ValueError:
             pass
-        except UnsupportedAlgorithm:
-            has_ed25519 = False
 
-    has_ed448 = CRYPTOGRAPHY_HAS_ED448
-    if has_ed448:
+        has_ed25519 = True
         try:
-            from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
-            Ed448PrivateKey.from_private_bytes(b'')
+            # added with the primitive in 2.6
+            ed25519.Ed25519PrivateKey.sign  # noqa: B018 # pylint: disable=pointless-statement
+            has_ed25519_sign = True
+        except AttributeError:
+            pass
+    except (ImportError, UnsupportedAlgorithm):
+        pass
+
+    # Test for Ed448
+    has_ed448 = False
+    has_ed448_sign = False
+    try:
+        # added in 2.6 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ed448/
+        from cryptography.hazmat.primitives.asymmetric import ed448
+
+        try:
+            ed448.Ed448PrivateKey.from_private_bytes(b"")
         except ValueError:
             pass
-        except UnsupportedAlgorithm:
-            has_ed448 = False
 
-    has_x25519 = CRYPTOGRAPHY_HAS_X25519
-    if has_x25519:
+        has_ed448 = True
         try:
-            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-            if CRYPTOGRAPHY_HAS_X25519_FULL:
-                X25519PrivateKey.from_private_bytes(b'')
+            # added with the primitive in 2.6
+            ed448.Ed448PrivateKey.sign  # noqa: B018 # pylint: disable=pointless-statement
+            has_ed448_sign = True
+        except AttributeError:
+            pass
+    except (ImportError, UnsupportedAlgorithm):
+        pass
+
+    # Test for X25519
+    has_x25519 = False
+    has_x25519_full = False
+    try:
+        # added in 2.0 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/x25519/
+        from cryptography.hazmat.primitives.asymmetric import x25519
+
+        try:
+            # added later in 2.5
+            x25519.X25519PrivateKey.private_bytes  # noqa: B018 # pylint: disable=pointless-statement
+            full = True
+        except AttributeError:
+            full = False
+
+        try:
+            if full:
+                x25519.X25519PrivateKey.from_private_bytes(b"")
             else:
                 # Some versions do not support serialization and deserialization - use generate() instead
-                X25519PrivateKey.generate()
+                x25519.X25519PrivateKey.generate()
         except ValueError:
             pass
-        except UnsupportedAlgorithm:
-            has_x25519 = False
 
-    has_x448 = CRYPTOGRAPHY_HAS_X448
-    if has_x448:
+        has_x25519 = True
+        has_x25519_full = full
+    except (ImportError, UnsupportedAlgorithm):
+        pass
+
+    # Test for X448
+    has_x448 = False
+    try:
+        # added in 2.5 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/x448/
+        from cryptography.hazmat.primitives.asymmetric import x448
+
         try:
-            from cryptography.hazmat.primitives.asymmetric.x448 import X448PrivateKey
-            X448PrivateKey.from_private_bytes(b'')
+            x448.X448PrivateKey.from_private_bytes(b"")
         except ValueError:
             pass
-        except UnsupportedAlgorithm:
-            has_x448 = False
 
+        has_x448 = True
+    except (ImportError, UnsupportedAlgorithm):
+        pass
+
+    # Test for ECC
+    has_ec = False
+    has_ec_sign = False
     curves = []
-    if CRYPTOGRAPHY_HAS_EC:
-        import cryptography.hazmat.backends
-        import cryptography.hazmat.primitives.asymmetric.ec
+    try:
+        # added in 0.5 - https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ec/
+        from cryptography.hazmat.primitives.asymmetric import ec
 
-        backend = cryptography.hazmat.backends.default_backend()
+        has_ec = True
+        try:
+            # added later in 1.5
+            ec.EllipticCurvePrivateKey.sign  # noqa: B018 # pylint: disable=pointless-statement
+            has_ec_sign = True
+        except AttributeError:
+            pass
+    except ImportError:
+        pass
+    else:
         for curve_name, constructor_name in CURVES:
-            ecclass = cryptography.hazmat.primitives.asymmetric.ec.__dict__.get(constructor_name)
+            ecclass = ec.__dict__.get(constructor_name)
             if ecclass:
                 try:
-                    cryptography.hazmat.primitives.asymmetric.ec.generate_private_key(curve=ecclass(), backend=backend)
+                    ec.generate_private_key(curve=ecclass())
                     curves.append(curve_name)
                 except UnsupportedAlgorithm:
                     pass
-                except CryptographyInternalError:  # pylint: disable=duplicate-except,bad-except-order
+                except (  # pylint: disable=duplicate-except,bad-except-order
+                    CryptographyInternalError
+                ):
                     # On Fedora 41, some curves result in InternalError. This is probably because
                     # Fedora's cryptography is linked against the system libssl, which has the
                     # curves removed.
                     pass
 
+    # Compose result
     info = {
-        'version': CRYPTOGRAPHY_VERSION,
-        'curves': curves,
-        'has_ec': CRYPTOGRAPHY_HAS_EC,
-        'has_ec_sign': CRYPTOGRAPHY_HAS_EC_SIGN,
-        'has_ed25519': has_ed25519,
-        'has_ed25519_sign': has_ed25519 and CRYPTOGRAPHY_HAS_ED25519_SIGN,
-        'has_ed448': has_ed448,
-        'has_ed448_sign': has_ed448 and CRYPTOGRAPHY_HAS_ED448_SIGN,
-        'has_dsa': CRYPTOGRAPHY_HAS_DSA,
-        'has_dsa_sign': CRYPTOGRAPHY_HAS_DSA_SIGN,
-        'has_rsa': CRYPTOGRAPHY_HAS_RSA,
-        'has_rsa_sign': CRYPTOGRAPHY_HAS_RSA_SIGN,
-        'has_x25519': has_x25519,
-        'has_x25519_serialization': has_x25519 and CRYPTOGRAPHY_HAS_X25519_FULL,
-        'has_x448': has_x448,
+        "version": CRYPTOGRAPHY_VERSION,
+        "curves": curves,
+        "has_ec": has_ec,
+        "has_ec_sign": has_ec_sign,
+        "has_ed25519": has_ed25519,
+        "has_ed25519_sign": has_ed25519_sign,
+        "has_ed448": has_ed448,
+        "has_ed448_sign": has_ed448_sign,
+        "has_dsa": has_dsa,
+        "has_dsa_sign": has_dsa_sign,
+        "has_rsa": has_rsa,
+        "has_rsa_sign": has_rsa_sign,
+        "has_x25519": has_x25519,
+        "has_x25519_serialization": has_x25519 and has_x25519_full,
+        "has_x448": has_x448,
     }
-    result['python_cryptography_capabilities'] = info
+    result["python_cryptography_capabilities"] = info
     return result
 
 
-def add_openssl_information(module):
-    openssl_binary = module.get_bin_path('openssl')
-    result = {
-        'openssl_present': openssl_binary is not None,
+def add_openssl_information(module: AnsibleModule) -> dict[str, t.Any]:
+    openssl_binary = module.get_bin_path("openssl")
+    result: dict[str, t.Any] = {
+        "openssl_present": openssl_binary is not None,
     }
     if openssl_binary is None:
         return result
 
     openssl_result = {
-        'path': openssl_binary,
+        "path": openssl_binary,
     }
-    result['openssl'] = openssl_result
+    result["openssl"] = openssl_result
 
-    rc, out, err = module.run_command([openssl_binary, 'version'])
+    rc, out, _err = module.run_command([openssl_binary, "version"])
     if rc == 0:
-        openssl_result['version_output'] = out
+        openssl_result["version_output"] = out
         parts = out.split(None, 2)
         if len(parts) > 1:
-            openssl_result['version'] = parts[1]
+            openssl_result["version"] = parts[1]
 
     return result
 
@@ -338,13 +416,13 @@ INFO_FUNCTIONS = (
 )
 
 
-def main():
+def main() -> t.NoReturn:
     module = AnsibleModule(argument_spec={}, supports_check_mode=True)
-    result = {}
+    result: dict[str, t.Any] = {}
     for fn in INFO_FUNCTIONS:
         result.update(fn(module))
     module.exit_json(**result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2022, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 name: openssl_privatekey_info
@@ -34,12 +31,13 @@ options:
     type: bool
     default: false
 extends_documentation_fragment:
-  - community.crypto.name_encoding
+  - community.crypto._name_encoding
 seealso:
   - module: community.crypto.openssl_privatekey_info
 """
 
 EXAMPLES = r"""
+---
 - name: Show the Subject Alt Names of the CSR
   ansible.builtin.debug:
     msg: >-
@@ -147,47 +145,64 @@ _value:
       type: dict
 """
 
-from ansible.errors import AnsibleFilterError
-from ansible.module_utils.six import string_types
-from ansible.module_utils.common.text.converters import to_bytes, to_native
+import typing as t
+from collections.abc import Callable
 
-from ansible_collections.community.crypto.plugins.module_utils.crypto.basic import (
+from ansible.errors import AnsibleFilterError
+from ansible.module_utils.common.text.converters import to_bytes, to_text
+
+from ansible_collections.community.crypto.plugins.module_utils._crypto.basic import (
     OpenSSLObjectError,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.module_backends.privatekey_info import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.privatekey_info import (
     PrivateKeyParseError,
     get_privatekey_info,
 )
+from ansible_collections.community.crypto.plugins.plugin_utils._filter_module import (
+    FilterModuleMock,
+)
 
-from ansible_collections.community.crypto.plugins.plugin_utils.filter_module import FilterModuleMock
 
-
-def openssl_privatekey_info_filter(data, passphrase=None, return_private_key_data=False):
-    '''Extract information from X.509 PEM certificate.'''
-    if not isinstance(data, string_types):
-        raise AnsibleFilterError('The community.crypto.openssl_privatekey_info input must be a text type, not %s' % type(data))
-    if passphrase is not None and not isinstance(passphrase, string_types):
-        raise AnsibleFilterError('The passphrase option must be a text type, not %s' % type(passphrase))
+def openssl_privatekey_info_filter(
+    data: str | bytes,
+    passphrase: str | bytes | None = None,
+    return_private_key_data: bool = False,
+) -> dict[str, t.Any]:
+    """Extract information from X.509 PEM certificate."""
+    if not isinstance(data, (str, bytes)):
+        raise AnsibleFilterError(
+            f"The community.crypto.openssl_privatekey_info input must be a text type, not {type(data)}"
+        )
+    if passphrase is not None and not isinstance(passphrase, (str, bytes)):
+        raise AnsibleFilterError(
+            f"The passphrase option must be a text type, not {type(passphrase)}"
+        )
     if not isinstance(return_private_key_data, bool):
-        raise AnsibleFilterError('The return_private_key_data option must be a boolean, not %s' % type(return_private_key_data))
+        raise AnsibleFilterError(
+            f"The return_private_key_data option must be a boolean, not {type(return_private_key_data)}"
+        )
 
     module = FilterModuleMock({})
     try:
-        result = get_privatekey_info(module, 'cryptography', content=to_bytes(data), passphrase=passphrase, return_private_key_data=return_private_key_data)
-        result.pop('can_parse_key', None)
-        result.pop('key_is_consistent', None)
+        result = get_privatekey_info(
+            module=module,
+            content=to_bytes(data),
+            passphrase=to_text(passphrase) if passphrase is not None else None,
+            return_private_key_data=return_private_key_data,
+        )
+        result.pop("can_parse_key", None)
+        result.pop("key_is_consistent", None)
         return result
     except PrivateKeyParseError as exc:
-        raise AnsibleFilterError(exc.error_message)
+        raise AnsibleFilterError(exc.error_message) from exc
     except OpenSSLObjectError as exc:
-        raise AnsibleFilterError(to_native(exc))
+        raise AnsibleFilterError(str(exc)) from exc
 
 
-class FilterModule(object):
-    '''Ansible jinja2 filters'''
+class FilterModule:
+    """Ansible jinja2 filters"""
 
-    def filters(self):
+    def filters(self) -> dict[str, Callable]:
         return {
-            'openssl_privatekey_info': openssl_privatekey_info_filter,
+            "openssl_privatekey_info": openssl_privatekey_info_filter,
         }

@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2022, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 name: openssl_publickey_info
@@ -27,6 +24,7 @@ seealso:
 """
 
 EXAMPLES = r"""
+---
 - name: Show the type of a public key
   ansible.builtin.debug:
     msg: >-
@@ -124,40 +122,44 @@ _value:
           returned: When RV(_value.type=DSA) or RV(_value.type=ECC)
 """
 
-from ansible.errors import AnsibleFilterError
-from ansible.module_utils.six import string_types
-from ansible.module_utils.common.text.converters import to_bytes, to_native
+import typing as t
+from collections.abc import Callable
 
-from ansible_collections.community.crypto.plugins.module_utils.crypto.basic import (
+from ansible.errors import AnsibleFilterError
+from ansible.module_utils.common.text.converters import to_bytes
+
+from ansible_collections.community.crypto.plugins.module_utils._crypto.basic import (
     OpenSSLObjectError,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.module_backends.publickey_info import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.publickey_info import (
     PublicKeyParseError,
     get_publickey_info,
 )
+from ansible_collections.community.crypto.plugins.plugin_utils._filter_module import (
+    FilterModuleMock,
+)
 
-from ansible_collections.community.crypto.plugins.plugin_utils.filter_module import FilterModuleMock
 
-
-def openssl_publickey_info_filter(data):
-    '''Extract information from OpenSSL PEM public key.'''
-    if not isinstance(data, string_types):
-        raise AnsibleFilterError('The community.crypto.openssl_publickey_info input must be a text type, not %s' % type(data))
+def openssl_publickey_info_filter(data: str | bytes) -> dict[str, t.Any]:
+    """Extract information from OpenSSL PEM public key."""
+    if not isinstance(data, (str, bytes)):
+        raise AnsibleFilterError(
+            f"The community.crypto.openssl_publickey_info input must be a text type, not {type(data)}"
+        )
 
     module = FilterModuleMock({})
     try:
-        return get_publickey_info(module, 'cryptography', content=to_bytes(data))
+        return get_publickey_info(module=module, content=to_bytes(data))
     except PublicKeyParseError as exc:
-        raise AnsibleFilterError(exc.error_message)
+        raise AnsibleFilterError(exc.error_message) from exc
     except OpenSSLObjectError as exc:
-        raise AnsibleFilterError(to_native(exc))
+        raise AnsibleFilterError(str(exc)) from exc
 
 
-class FilterModule(object):
-    '''Ansible jinja2 filters'''
+class FilterModule:
+    """Ansible jinja2 filters"""
 
-    def filters(self):
+    def filters(self) -> dict[str, Callable]:
         return {
-            'openssl_publickey_info': openssl_publickey_info_filter,
+            "openssl_publickey_info": openssl_publickey_info_filter,
         }

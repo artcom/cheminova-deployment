@@ -3,17 +3,17 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-- debug:
+- ansible.builtin.debug:
     msg: "Executing tests with backend {{ select_crypto_backend }}"
 
-- name: ({{select_crypto_backend}}) Get key 1 info
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 1 info
+  community.crypto.openssl_privatekey_info:
     path: '{{ remote_tmp_dir }}/privatekey_1.pem'
     select_crypto_backend: '{{ select_crypto_backend }}'
   register: result
 
 - name: Check that RSA key info is ok
-  assert:
+  ansible.builtin.assert:
     that:
       - "'public_key' in result"
       - "'public_key_fingerprints' in result"
@@ -24,34 +24,34 @@
       - "result.public_data.exponent > 5"
       - "'private_data' not in result"
 
-- name: ({{select_crypto_backend}}) Read private key
-  slurp:
+- name: ({{ select_crypto_backend }}) Read private key
+  ansible.builtin.slurp:
     src: '{{ remote_tmp_dir }}/privatekey_1.pem'
   register: slurp
 
-- name: ({{select_crypto_backend}}) Get key 1 info directly
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 1 info directly
+  community.crypto.openssl_privatekey_info:
     content: '{{ slurp.content | b64decode }}'
     select_crypto_backend: '{{ select_crypto_backend }}'
   register: result_direct
 
-- name: ({{select_crypto_backend}}) Compare output of direct and loaded info
-  assert:
+- name: ({{ select_crypto_backend }}) Compare output of direct and loaded info
+  ansible.builtin.assert:
     that:
       - >-
         (result | dict2items | rejectattr("key", "equalto", "warnings") | list | items2dict)
         ==
         (result_direct | dict2items | rejectattr("key", "equalto", "warnings") | list | items2dict)
 
-- name: ({{select_crypto_backend}}) Get key 2 info
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 2 info
+  community.crypto.openssl_privatekey_info:
     path: '{{ remote_tmp_dir }}/privatekey_2.pem'
     return_private_key_data: true
     select_crypto_backend: '{{ select_crypto_backend }}'
   register: result
 
 - name: Check that RSA key info is ok
-  assert:
+  ansible.builtin.assert:
     that:
       - "'public_key' in result"
       - "'public_key_fingerprints' in result"
@@ -65,8 +65,8 @@
       - "result.public_data.modulus == result.private_data.p * result.private_data.q"
       - "result.private_data.exponent > 5"
 
-- name: ({{select_crypto_backend}}) Get key 3 info (without passphrase)
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 3 info (without passphrase)
+  community.crypto.openssl_privatekey_info:
     path: '{{ remote_tmp_dir }}/privatekey_3.pem'
     return_private_key_data: true
     select_crypto_backend: '{{ select_crypto_backend }}'
@@ -74,7 +74,7 @@
   register: result
 
 - name: Check that loading passphrase protected key without passphrase failed
-  assert:
+  ansible.builtin.assert:
     that:
       - result is failed
       # Check that return values are there
@@ -90,8 +90,34 @@
       - "'public_data' not in result"
       - "'private_data' not in result"
 
-- name: ({{select_crypto_backend}}) Get key 3 info (with passphrase)
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 3 info (with wrong passphrase)
+  community.crypto.openssl_privatekey_info:
+    path: '{{ remote_tmp_dir }}/privatekey_3.pem'
+    return_private_key_data: true
+    select_crypto_backend: '{{ select_crypto_backend }}'
+    passphrase: blabla
+  ignore_errors: true
+  register: result
+
+- name: Check that loading passphrase protected key with wrong passphrase failed
+  ansible.builtin.assert:
+    that:
+      - result is failed
+      # Check that return values are there
+      - result.can_load_key is defined
+      - result.can_parse_key is defined
+      # Check that return values are correct
+      - result.can_load_key
+      - not result.can_parse_key
+      # Check that additional data isn't there
+      - "'pulic_key' not in result"
+      - "'pulic_key_fingerprints' not in result"
+      - "'type' not in result"
+      - "'public_data' not in result"
+      - "'private_data' not in result"
+
+- name: ({{ select_crypto_backend }}) Get key 3 info (with passphrase)
+  community.crypto.openssl_privatekey_info:
     path: '{{ remote_tmp_dir }}/privatekey_3.pem'
     passphrase: hunter2
     return_private_key_data: true
@@ -99,7 +125,7 @@
   register: result
 
 - name: Check that RSA key info is ok
-  assert:
+  ansible.builtin.assert:
     that:
       - "'public_key' in result"
       - "'public_key_fingerprints' in result"
@@ -112,15 +138,15 @@
       - "result.public_data.modulus == result.private_data.p * result.private_data.q"
       - "result.private_data.exponent > 5"
 
-- name: ({{select_crypto_backend}}) Get key 4 info
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 4 info
+  community.crypto.openssl_privatekey_info:
     path: '{{ remote_tmp_dir }}/privatekey_4.pem'
     return_private_key_data: true
     select_crypto_backend: '{{ select_crypto_backend }}'
   register: result
 
 - name: Check that ECC key info is ok
-  assert:
+  ansible.builtin.assert:
     that:
       - "'public_key' in result"
       - "'public_key_fingerprints' in result"
@@ -134,15 +160,15 @@
       - "'private_data' in result"
       - "result.private_data.multiplier > 1024"
 
-- name: ({{select_crypto_backend}}) Get key 5 info
-  openssl_privatekey_info:
+- name: ({{ select_crypto_backend }}) Get key 5 info
+  community.crypto.openssl_privatekey_info:
     path: '{{ remote_tmp_dir }}/privatekey_5.pem'
     return_private_key_data: true
     select_crypto_backend: '{{ select_crypto_backend }}'
   register: result
 
 - name: Check that DSA key info is ok
-  assert:
+  ansible.builtin.assert:
     that:
       - "'public_key' in result"
       - "'public_key_fingerprints' in result"
@@ -155,3 +181,53 @@
       - "result.public_data.y > 2"
       - "'private_data' in result"
       - "result.private_data.x > 2"
+
+- name: ({{ select_crypto_backend }}) Get empty key info
+  community.crypto.openssl_privatekey_info:
+    content: ''
+    return_private_key_data: true
+    select_crypto_backend: '{{ select_crypto_backend }}'
+  register: result
+  ignore_errors: true
+
+- name: Check that empty key loading failed
+  ansible.builtin.assert:
+    that:
+      - result is failed
+      # Check that return values are there
+      - result.can_load_key is defined
+      - result.can_parse_key is defined
+      # Check that return values are correct
+      - result.can_load_key
+      - not result.can_parse_key
+      # Check that additional data isn't there
+      - "'pulic_key' not in result"
+      - "'pulic_key_fingerprints' not in result"
+      - "'type' not in result"
+      - "'public_data' not in result"
+      - "'private_data' not in result"
+
+- name: ({{ select_crypto_backend }}) Get corrupt key info
+  community.crypto.openssl_privatekey_info:
+    content: C0RRUPT
+    return_private_key_data: true
+    select_crypto_backend: '{{ select_crypto_backend }}'
+  register: result
+  ignore_errors: true
+
+- name: Check that corrupt key loading failed
+  ansible.builtin.assert:
+    that:
+      - result is failed
+      # Check that return values are there
+      - result.can_load_key is defined
+      - result.can_parse_key is defined
+      # Check that return values are correct
+      - result.can_load_key
+      - not result.can_parse_key
+      # Check that additional data isn't there
+      - "'pulic_key' not in result"
+      - "'pulic_key_fingerprints' not in result"
+      - "'type' not in result"
+      - "'public_data' not in result"
+      - "'private_data' not in result"

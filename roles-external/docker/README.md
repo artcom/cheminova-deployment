@@ -1,16 +1,16 @@
-## What is ansible-docker? ![CI](https://github.com/nickjj/ansible-docker/workflows/CI/badge.svg?branch=master)
+## 🐳 What is ansible-docker?
 
 It is an [Ansible](http://www.ansible.com/home) role to:
 
-- Install Docker (editions, channels and version pinning are all supported)
-- Install Docker Compose v2 and / or Docker Compose v1 (version pinning is supported)
+- Install Docker (channels and version pinning are supported)
+- Install Docker Compose v2 (version pinning is supported)
 - Install the `docker` PIP package so Ansible's `docker_*` modules work
 - Manage Docker registry login credentials
 - Configure 1 or more users to run Docker without needing root access
 - Configure the Docker daemon's options and environment variables
 - Configure a cron job to run Docker clean up commands
 
-## Why would you want to use this role?
+## ❔ Why would you want to use this role?
 
 If you're like me, you probably love Docker. This role provides everything you
 need to get going with a production ready Docker host.
@@ -19,23 +19,23 @@ By the way, if you don't know what Docker is, or are looking to become an expert
 with it then check out
 [Dive into Docker: The Complete Docker Course for Developers](https://diveintodocker.com/?utm_source=ansibledocker&utm_medium=github&utm_campaign=readmetop).
 
-## Supported platforms
+## 🛟 Supported platforms
 
-- Ubuntu 20.04 LTS (Focal Fossa)
 - Ubuntu 22.04 LTS (Jammy Jellyfish)
-- Debian 11 (Bullseye)
+- Ubuntu 24.04 LTS (Noble Numbat)
 - Debian 12 (Bookworm)
+- Debian 13 (Trixie)
 
 Previous releases may or may not work but they're not officially supported.
 
 ---
 
 *You are viewing the master branch's documentation which might be ahead of the
-latest release. [Switch to the latest release](https://github.com/nickjj/ansible-docker/tree/v2.5.0).*
+latest release. [Switch to the latest release](https://github.com/nickjj/ansible-docker/tree/v2.5.3).*
 
 ---
 
-## Quick start
+## ✨ Quick start
 
 The philosophy for all of my roles is to make it easy to get going, but provide
 a way to customize nearly everything.
@@ -68,7 +68,7 @@ Usage: `ansible-playbook docker.yml`
 
 `$ ansible-galaxy install nickjj.docker`
 
-## Default role variables
+## ⚙️ Default role variables
 
 ### Installing Docker
 
@@ -89,11 +89,11 @@ docker__channel: ["stable"]
 ```yml
 docker__version: ""
 
-# For example, pin it to 25.0.
-docker__version: "25.0"
+# For example, pin it to 28.0.
+docker__version: "28.0"
 
-# For example, pin it to a more precise version of 25.0.
-docker__version: "25.0.5"
+# For example, pin it to a more precise version of 28.0.
+docker__version: "28.2.1"
 ```
 
 *Pins are set with `*` at the end of the package version so you will end up
@@ -136,11 +136,11 @@ and pinned
 ```yml
 docker__compose_v2_version: ""
 
-# For example, pin it to 2.29.
-docker__compose_v2_version: "2.29"
+# For example, pin it to 2.36.
+docker__compose_v2_version: "2.36"
 
-# For example, pin it to a more precise version of 2.29.1.
-docker__compose_v2_version: "2.29.1"
+# For example, pin it to a more precise version of 2.36.
+docker__compose_v2_version: "2.36.2"
 ```
 
 ##### Upgrade strategy
@@ -357,7 +357,6 @@ docker__package_dependencies:
   - "ca-certificates"
   - "cron"
   - "gnupg2"
-  - "software-properties-common"
 
 # Ansible identifies CPU architectures differently than Docker.
 docker__architecture_map:
@@ -458,6 +457,15 @@ because this role creates a proxy script from the Virtualenv's Python binary to
 You can look at this role's `docker_login` task as an example on how to do it
 at the task level.
 
-## License
+## 👀 About the author
 
-MIT
+- Nick Janetakis | <https://nickjanetakis.com> | [@nickjanetakis](https://twitter.com/nickjanetakis)
+
+I'm a self taught developer and have been freelancing for the last ~20 years.
+You can read about everything I've learned along the way on my site at
+[https://nickjanetakis.com](https://nickjanetakis.com/).
+
+There's hundreds of [blog posts](https://nickjanetakis.com/blog) and a couple
+of [video courses](https://nickjanetakis.com/courses) on web development and
+deployment topics. I also have a [podcast](https://runninginproduction.com)
+where I talk with folks about running web apps in production.

@@ -9,19 +9,19 @@
 ####################################################################
 
 - name: Prepare private key for backend autodetection test
-  openssl_privatekey:
+  community.crypto.openssl_privatekey:
     path: '{{ remote_tmp_dir }}/privatekey_backend_selection.pem'
     size: '{{ default_rsa_key_size }}'
 - name: Run module with backend autodetection
-  openssl_csr_pipe:
+  community.crypto.openssl_csr_pipe:
     privatekey_path: '{{ remote_tmp_dir }}/privatekey_backend_selection.pem'
     subject:
       commonName: www.ansible.com
 
 - block:
-  - name: Running tests with cryptography backend
-    include_tasks: impl.yml
-    vars:
-      select_crypto_backend: cryptography
+    - name: Running tests with cryptography backend
+      ansible.builtin.include_tasks: impl.yml
+      vars:
+        select_crypto_backend: cryptography
 
-  when: cryptography_version.stdout is version('1.3', '>=')
+  when: cryptography_version is version('3.3', '>=')

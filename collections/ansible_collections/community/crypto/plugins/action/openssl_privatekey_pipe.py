@@ -1,111 +1,100 @@
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2020, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
-
+from __future__ import annotations
 
 import base64
+import typing as t
 
-from ansible.module_utils.common.text.converters import to_native, to_bytes
+from ansible.module_utils.common.text.converters import to_bytes
 
-from ansible_collections.community.crypto.plugins.plugin_utils.action_module import ActionModuleBase
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.basic import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.basic import (
     OpenSSLObjectError,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.module_backends.privatekey import (
-    select_backend,
+from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.privatekey import (
     get_privatekey_argument_spec,
+    select_backend,
+)
+from ansible_collections.community.crypto.plugins.plugin_utils._action_module import (
+    ActionModuleBase,
 )
 
+if t.TYPE_CHECKING:
+    from ansible_collections.community.crypto.plugins.module_utils._argspec import (  # pragma: no cover
+        ArgumentSpec,
+    )
+    from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.privatekey import (  # pragma: no cover
+        PrivateKeyBackend,
+    )
+    from ansible_collections.community.crypto.plugins.plugin_utils._action_module import (  # pragma: no cover
+        AnsibleActionModule,
+    )
 
-class PrivateKeyModule(object):
-    def __init__(self, module, module_backend):
+
+class PrivateKeyModule:
+    def __init__(
+        self, module: AnsibleActionModule, module_backend: PrivateKeyBackend
+    ) -> None:
         self.module = module
         self.module_backend = module_backend
         self.check_mode = module.check_mode
         self.changed = False
-        self.return_current_key = module.params['return_current_key']
+        self.return_current_key: bool = module.params["return_current_key"]
 
-        if module.params['content'] is not None:
-            if module.params['content_base64']:
+        content: str | None = module.params["content"]
+        content_base64: bool = module.params["content_base64"]
+        if content is not None:
+            if content_base64:
                 try:
-                    data = base64.b64decode(module.params['content'])
+                    data = base64.b64decode(content)
                 except Exception as e:
-                    module.fail_json(msg='Cannot decode Base64 encoded data: {0}'.format(e))
+                    module.fail_json(msg=f"Cannot decode Base64 encoded data: {e}")
             else:
-                data = to_bytes(module.params['content'])
-            module_backend.set_existing(data)
+                data = to_bytes(content)
+            module_backend.set_existing(privatekey_bytes=data)
 
-    def generate(self, module):
+    def generate(self, module: AnsibleActionModule) -> None:
         """Generate a keypair."""
 
         if self.module_backend.needs_regeneration():
             # Regenerate
-            if not self.check_mode:
-                self.module_backend.generate_private_key()
-                privatekey_data = self.module_backend.get_private_key_data()
-                self.privatekey_bytes = privatekey_data
-            else:
-                self.module.deprecate(
-                    'Check mode support for openssl_privatekey_pipe will change in community.crypto 3.0.0'
-                    ' to behave the same as without check mode. You can get that behavior right now'
-                    ' by adding `check_mode: false` to the openssl_privatekey_pipe task. If you think this'
-                    ' breaks your use-case of this module, please create an issue in the'
-                    ' community.crypto repository',
-                    version='3.0.0',
-                    collection_name='community.crypto',
-                )
+            self.module_backend.generate_private_key()
+            # Call get_private_key_data() to make sure that exceptions are raised now:
+            self.module_backend.get_private_key_data()
             self.changed = True
         elif self.module_backend.needs_conversion():
             # Convert
-            if not self.check_mode:
-                self.module_backend.convert_private_key()
-                privatekey_data = self.module_backend.get_private_key_data()
-                self.privatekey_bytes = privatekey_data
-            else:
-                self.module.deprecate(
-                    'Check mode support for openssl_privatekey_pipe will change in community.crypto 3.0.0'
-                    ' to behave the same as without check mode. You can get that behavior right now'
-                    ' by adding `check_mode: false` to the openssl_privatekey_pipe task. If you think this'
-                    ' breaks your use-case of this module, please create an issue in the'
-                    ' community.crypto repository',
-                    version='3.0.0',
-                    collection_name='community.crypto',
-                )
+            self.module_backend.convert_private_key()
+            # Call get_private_key_data() to make sure that exceptions are raised now:
+            self.module_backend.get_private_key_data()
             self.changed = True
 
-    def dump(self):
+    def dump(self) -> dict[str, t.Any]:
         """Serialize the object into a dictionary."""
-        result = self.module_backend.dump(include_key=self.changed or self.return_current_key)
-        result['changed'] = self.changed
+        result = self.module_backend.dump(
+            include_key=self.changed or self.return_current_key
+        )
+        result["changed"] = self.changed
         return result
 
 
 class ActionModule(ActionModuleBase):
-    @staticmethod
-    def setup_module():
+    def setup_module(self) -> tuple[ArgumentSpec, dict[str, t.Any]]:
         argument_spec = get_privatekey_argument_spec()
-        argument_spec.argument_spec.update(dict(
-            content=dict(type='str', no_log=True),
-            content_base64=dict(type='bool', default=False),
-            return_current_key=dict(type='bool', default=False),
-        ))
-        return argument_spec, dict(
-            supports_check_mode=True,
+        argument_spec.argument_spec.update(
+            {
+                "content": {"type": "str", "no_log": True},
+                "content_base64": {"type": "bool", "default": False},
+                "return_current_key": {"type": "bool", "default": False},
+            }
         )
+        return argument_spec, {
+            "supports_check_mode": True,
+        }
 
-    @staticmethod
-    def run_module(module):
-        backend, module_backend = select_backend(
-            module=module,
-            backend=module.params['select_crypto_backend'],
-        )
+    def run_module(self, module: AnsibleActionModule) -> None:
+        module_backend = select_backend(module=module)
 
         try:
             private_key = PrivateKeyModule(module, module_backend)
@@ -119,10 +108,10 @@ class ActionModule(ActionModuleBase):
                 # `module.no_log = True`, this should be safe.
                 module.no_log = True
                 try:
-                    module.no_log_values.remove(module.params['content'])
+                    module.no_log_values.remove(module.params["content"])
                 except KeyError:
                     pass
-                module.params['content'] = 'ANSIBLE_NO_LOG_VALUE'
+                module.params["content"] = "ANSIBLE_NO_LOG_VALUE"
             module.exit_json(**result)
         except OpenSSLObjectError as exc:
-            module.fail_json(msg=to_native(exc))
+            module.fail_json(msg=str(exc))

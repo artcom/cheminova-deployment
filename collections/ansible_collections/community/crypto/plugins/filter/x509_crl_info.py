@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2022, Felix Fontein <felix@fontein.de>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 name: x509_crl_info
@@ -31,7 +28,7 @@ options:
     default: true
     version_added: 1.7.0
 extends_documentation_fragment:
-  - community.crypto.name_encoding
+  - community.crypto._name_encoding
 seealso:
   - module: community.crypto.x509_crl_info
   - plugin: community.crypto.to_serial
@@ -39,6 +36,7 @@ seealso:
 """
 
 EXAMPLES = r"""
+---
 - name: Show the Organization Name of the CRL's subject
   ansible.builtin.debug:
     msg: >-
@@ -156,56 +154,74 @@ _value:
 
 import base64
 import binascii
+import typing as t
+from collections.abc import Callable
 
 from ansible.errors import AnsibleFilterError
-from ansible.module_utils.six import string_types
-from ansible.module_utils.common.text.converters import to_bytes, to_native
+from ansible.module_utils.common.text.converters import to_bytes, to_text
 
-from ansible_collections.community.crypto.plugins.module_utils.crypto.basic import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.basic import (
     OpenSSLObjectError,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.pem import (
-    identify_pem_format,
-)
-
-from ansible_collections.community.crypto.plugins.module_utils.crypto.module_backends.crl_info import (
+from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.crl_info import (
     get_crl_info,
 )
+from ansible_collections.community.crypto.plugins.module_utils._crypto.pem import (
+    identify_pem_format,
+)
+from ansible_collections.community.crypto.plugins.plugin_utils._filter_module import (
+    FilterModuleMock,
+)
 
-from ansible_collections.community.crypto.plugins.plugin_utils.filter_module import FilterModuleMock
 
-
-def x509_crl_info_filter(data, name_encoding='ignore', list_revoked_certificates=True):
-    '''Extract information from X.509 PEM certificate.'''
-    if not isinstance(data, string_types):
-        raise AnsibleFilterError('The community.crypto.x509_crl_info input must be a text type, not %s' % type(data))
-    if not isinstance(name_encoding, string_types):
-        raise AnsibleFilterError('The name_encoding option must be of a text type, not %s' % type(name_encoding))
+def x509_crl_info_filter(
+    data: str | bytes,
+    name_encoding: t.Literal["ignore", "idna", "unicode"] = "ignore",
+    list_revoked_certificates: bool = True,
+) -> dict[str, t.Any]:
+    """Extract information from X.509 PEM certificate."""
+    if not isinstance(data, (str, bytes)):
+        raise AnsibleFilterError(
+            f"The community.crypto.x509_crl_info input must be a text type, not {type(data)}"
+        )
+    if not isinstance(name_encoding, (str, bytes)):
+        raise AnsibleFilterError(
+            f"The name_encoding option must be of a text type, not {type(name_encoding)}"
+        )
     if not isinstance(list_revoked_certificates, bool):
-        raise AnsibleFilterError('The list_revoked_certificates option must be a boolean, not %s' % type(list_revoked_certificates))
-    name_encoding = to_native(name_encoding)
-    if name_encoding not in ('ignore', 'idna', 'unicode'):
-        raise AnsibleFilterError('The name_encoding option must be one of the values "ignore", "idna", or "unicode", not "%s"' % name_encoding)
+        raise AnsibleFilterError(
+            f"The list_revoked_certificates option must be a boolean, not {type(list_revoked_certificates)}"
+        )
+    name_encoding = t.cast(
+        t.Literal["ignore", "idna", "unicode"], to_text(name_encoding)
+    )
+    if name_encoding not in ("ignore", "idna", "unicode"):
+        raise AnsibleFilterError(
+            f'The name_encoding option must be one of the values "ignore", "idna", or "unicode", not "{name_encoding}"'
+        )
 
-    data = to_bytes(data)
-    if not identify_pem_format(data):
+    data_bytes = to_bytes(data)
+    if not identify_pem_format(data_bytes):
         try:
-            data = base64.b64decode(to_native(data))
-        except (binascii.Error, TypeError, ValueError, UnicodeEncodeError) as e:
+            data_bytes = base64.b64decode(to_text(data_bytes))
+        except (binascii.Error, TypeError, ValueError, UnicodeEncodeError):
             pass
 
-    module = FilterModuleMock({'name_encoding': name_encoding})
+    module = FilterModuleMock({"name_encoding": name_encoding})
     try:
-        return get_crl_info(module, content=data, list_revoked_certificates=list_revoked_certificates)
+        return get_crl_info(
+            module=module,
+            content=data_bytes,
+            list_revoked_certificates=list_revoked_certificates,
+        )
     except OpenSSLObjectError as exc:
-        raise AnsibleFilterError(to_native(exc))
+        raise AnsibleFilterError(str(exc)) from exc
 
 
-class FilterModule(object):
-    '''Ansible jinja2 filters'''
+class FilterModule:
+    """Ansible jinja2 filters"""
 
-    def filters(self):
+    def filters(self) -> dict[str, Callable]:
         return {
-            'x509_crl_info': x509_crl_info_filter,
+            "x509_crl_info": x509_crl_info_filter,
         }

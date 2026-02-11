@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
 
-DOCUMENTATION = """
+DOCUMENTATION = r"""
 name: onepassword_ssh_key
 author:
   - Mohammed Babelly (@mohammedbabelly20)
@@ -19,7 +18,6 @@ notes:
   - By default, it returns the private key value in PKCS#8 format, unless O(ssh_format=true) is passed.
   - The pluging works only for C(SSHKEY) type items.
   - This plugin requires C(op) version 2 or later.
-
 options:
   _terms:
     description: Identifier(s) (case-insensitive UUID or name) of item(s) to retrieve.
@@ -36,13 +34,14 @@ extends_documentation_fragment:
   - community.general.onepassword.lookup
 """
 
-EXAMPLES = """
+EXAMPLES = r"""
+---
 - name: Retrieve the private SSH key from 1Password
   ansible.builtin.debug:
     msg: "{{ lookup('community.general.onepassword_ssh_key', 'SSH Key', ssh_format=true) }}"
 """
 
-RETURN = """
+RETURN = r"""
 _raw:
   description: Private key of SSH keypair.
   type: list
@@ -50,12 +49,13 @@ _raw:
 """
 import json
 
+from ansible.errors import AnsibleLookupError
+from ansible.plugins.lookup import LookupBase
+
 from ansible_collections.community.general.plugins.lookup.onepassword import (
     OnePass,
     OnePassCLIv2,
 )
-from ansible.errors import AnsibleLookupError
-from ansible.plugins.lookup import LookupBase
 
 
 class LookupModule(LookupBase):
@@ -77,11 +77,7 @@ class LookupModule(LookupBase):
             raise AnsibleLookupError(f"No private key found for item {item_id}.")
 
         if ssh_format:
-            return (
-                private_key_field.get("ssh_formats", {})
-                .get("openssh", {})
-                .get("value", "")
-            )
+            return private_key_field.get("ssh_formats", {}).get("openssh", {}).get("value", "")
         return private_key_field.get("value", "")
 
     def run(self, terms, variables=None, **kwargs):
@@ -113,7 +109,4 @@ class LookupModule(LookupBase):
         )
         op.assert_logged_in()
 
-        return [
-            self.get_ssh_key(op.get_raw(term, vault), term, ssh_format=ssh_format)
-            for term in terms
-        ]
+        return [self.get_ssh_key(op.get_raw(term, vault), term, ssh_format=ssh_format) for term in terms]

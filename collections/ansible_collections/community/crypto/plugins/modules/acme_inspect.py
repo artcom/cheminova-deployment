@@ -1,13 +1,9 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2018 Felix Fontein (@felixfontein)
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
-
+from __future__ import annotations
 
 DOCUMENTATION = r"""
 module: acme_inspect
@@ -25,7 +21,7 @@ notes:
   - "Using the C(ansible) tool, M(community.crypto.acme_inspect) can be used to directly execute ACME requests without the
     need of writing a playbook. For example, the following command retrieves the ACME account with ID 1 from Let's Encrypt
     (assuming C(/path/to/key) is the correct private account key): C(ansible localhost -m acme_inspect -a \"account_key_src=/path/to/key
-    acme_directory=https://acme-v02.api.letsencrypt.org/directory acme_version=2 account_uri=https://acme-v02.api.letsencrypt.org/acme/acct/1
+    acme_directory=https://acme-v02.api.letsencrypt.org/directory account_uri=https://acme-v02.api.letsencrypt.org/acme/acct/1
     method=get url=https://acme-v02.api.letsencrypt.org/acme/acct/1\")."
 seealso:
   - name: Automatic Certificate Management Environment (ACME)
@@ -35,10 +31,10 @@ seealso:
     description: The specification of the C(tls-alpn-01) challenge (RFC 8737).
     link: https://www.rfc-editor.org/rfc/rfc8737.html
 extends_documentation_fragment:
-  - community.crypto.acme.basic
-  - community.crypto.acme.account
-  - community.crypto.attributes
-  - community.crypto.attributes.actiongroup_acme
+  - community.crypto._acme.basic
+  - community.crypto._acme.account
+  - community.crypto._attributes
+  - community.crypto._attributes.actiongroup_acme
 attributes:
   check_mode:
     support: none
@@ -77,17 +73,16 @@ options:
 """
 
 EXAMPLES = r"""
+---
 - name: Get directory
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     method: directory-only
   register: directory
 
 - name: Create an account
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     url: "{{ directory.newAccount}}"
     method: post
@@ -99,7 +94,6 @@ EXAMPLES = r"""
 - name: Get account information
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     url: "{{ account_creation.headers.location }}"
@@ -108,7 +102,6 @@ EXAMPLES = r"""
 - name: Update account contacts
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     url: "{{ account_creation.headers.location }}"
@@ -124,12 +117,12 @@ EXAMPLES = r"""
 - name: Create certificate order
   community.crypto.acme_certificate:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     csr: /etc/pki/cert/csr/sample.com.csr
     fullchain_dest: /etc/httpd/ssl/sample.com-fullchain.crt
     challenge: http-01
+    modify_account: false
   register: certificate_request
 
 # Assume something went wrong. certificate_request.order_uri contains
@@ -138,7 +131,6 @@ EXAMPLES = r"""
 - name: Get order information
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     url: "{{ certificate_request.order_uri }}"
@@ -148,7 +140,6 @@ EXAMPLES = r"""
 - name: Get first authz for order
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     url: "{{ order.output_json.authorizations[0] }}"
@@ -158,7 +149,6 @@ EXAMPLES = r"""
 - name: Get HTTP-01 challenge for authz
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     url: "{{ authz.output_json.challenges | selectattr('type', 'equalto', 'http-01') }}"
@@ -168,7 +158,6 @@ EXAMPLES = r"""
 - name: Activate HTTP-01 challenge manually
   community.crypto.acme_inspect:
     acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
-    acme_version: 2
     account_key_src: /etc/pki/cert/private/account.key
     account_uri: "{{ account_creation.headers.location }}"
     url: "{{ http01challenge.url }}"
@@ -181,24 +170,43 @@ directory:
   description: The ACME directory's content.
   returned: always
   type: dict
-  sample: {"a85k3x9f91A4": "https://community.letsencrypt.org/t/adding-random-entries-to-the-directory/33417",
+  sample: {
+    "a85k3x9f91A4": "https://community.letsencrypt.org/t/adding-random-entries-to-the-directory/33417",
     "keyChange": "https://acme-v02.api.letsencrypt.org/acme/key-change",
-    "meta": {"caaIdentities": ["letsencrypt.org"], "termsOfService": "https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf",
-      "website": "https://letsencrypt.org"},
+    "meta": {
+      "caaIdentities": ["letsencrypt.org"],
+      "termsOfService": "https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf",
+      "website": "https://letsencrypt.org",
+    },
     "newAccount": "https://acme-v02.api.letsencrypt.org/acme/new-acct",
     "newNonce": "https://acme-v02.api.letsencrypt.org/acme/new-nonce",
     "newOrder": "https://acme-v02.api.letsencrypt.org/acme/new-order",
-    "revokeCert": "https://acme-v02.api.letsencrypt.org/acme/revoke-cert"}
+    "revokeCert": "https://acme-v02.api.letsencrypt.org/acme/revoke-cert"
+  }
 headers:
   description: The request's HTTP headers (with lowercase keys).
   returned: always
   type: dict
-  sample: {"boulder-requester": "12345", "cache-control": "max-age=0, no-cache, no-store", "connection": "close", "content-length": "904",
-    "content-type": "application/json", "cookies": {}, "cookies_string": "", "date": "Wed, 07 Nov 2018 12:34:56 GMT", "expires": "Wed,
-      07 Nov 2018 12:44:56 GMT", "link": '<https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf>;rel="terms-of-service"',
-    "msg": "OK (904 bytes)", "pragma": "no-cache", "replay-nonce": "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGH", "server": "nginx",
-    "status": 200, "strict-transport-security": "max-age=604800", "url": "https://acme-v02.api.letsencrypt.org/acme/acct/46161",
-    "x-frame-options": "DENY"}
+  sample: {
+    "boulder-requester": "12345",
+    "cache-control": "max-age=0, no-cache, no-store",
+    "connection": "close",
+    "content-length": "904",
+    "content-type": "application/json",
+    "cookies": {},
+    "cookies_string": "",
+    "date": "Wed, 07 Nov 2018 12:34:56 GMT",
+    "expires": "Wed, 07 Nov 2018 12:44:56 GMT",
+    "link": '<https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf>;rel="terms-of-service"',
+    "msg": "OK (904 bytes)",
+    "pragma": "no-cache",
+    "replay-nonce": "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGH",
+    "server": "nginx",
+    "status": 200,
+    "strict-transport-security": "max-age=604800",
+    "url": "https://acme-v02.api.letsencrypt.org/acme/acct/46161",
+    "x-frame-options": "DENY",
+  }
 output_text:
   description: The raw text output.
   returned: always
@@ -215,75 +223,91 @@ output_json:
         - '...'
 """
 
-from ansible.module_utils.common.text.converters import to_native, to_bytes, to_text
+import typing as t
 
-from ansible_collections.community.crypto.plugins.module_utils.acme.acme import (
+from ansible.module_utils.common.text.converters import to_bytes, to_text
+
+from ansible_collections.community.crypto.plugins.module_utils._acme.acme import (
+    ACMEClient,
     create_backend,
     create_default_argspec,
-    ACMEClient,
 )
-
-from ansible_collections.community.crypto.plugins.module_utils.acme.errors import (
+from ansible_collections.community.crypto.plugins.module_utils._acme.errors import (
     ACMEProtocolException,
     ModuleFailException,
 )
 
 
-def main():
+def main() -> t.NoReturn:
     argument_spec = create_default_argspec(require_account_key=False)
     argument_spec.update_argspec(
-        url=dict(type='str'),
-        method=dict(type='str', choices=['get', 'post', 'directory-only'], default='get'),
-        content=dict(type='str'),
-        fail_on_acme_error=dict(type='bool', default=True),
+        url={"type": "str"},
+        method={
+            "type": "str",
+            "choices": ["get", "post", "directory-only"],
+            "default": "get",
+        },
+        content={"type": "str"},
+        fail_on_acme_error={"type": "bool", "default": True},
     )
     argument_spec.update(
-        required_if=(
-            ['method', 'get', ['url']],
-            ['method', 'post', ['url', 'content']],
-            ['method', 'get', ['account_key_src', 'account_key_content'], True],
-            ['method', 'post', ['account_key_src', 'account_key_content'], True],
-        ),
+        required_if=[
+            ("method", "get", ["url"]),
+            ("method", "post", ["url", "content"]),
+            ("method", "get", ["account_key_src", "account_key_content"], True),
+            ("method", "post", ["account_key_src", "account_key_content"], True),
+        ],
     )
     module = argument_spec.create_ansible_module()
-    backend = create_backend(module, False)
+    backend = create_backend(module, needs_acme_v2=False)
 
-    result = dict()
+    result: dict[str, t.Any] = {}
     changed = False
     try:
         # Get hold of ACMEClient and ACMEAccount objects (includes directory)
-        client = ACMEClient(module, backend)
-        method = module.params['method']
-        result['directory'] = client.directory.directory
+        client = ACMEClient(module=module, backend=backend)
+        method: t.Literal["get", "post", "directory-only"] = module.params["method"]
+        result["directory"] = client.directory.directory
         # Do we have to do more requests?
-        if method != 'directory-only':
-            url = module.params['url']
-            fail_on_acme_error = module.params['fail_on_acme_error']
+        if method != "directory-only":
+            url = module.params["url"]
+            fail_on_acme_error = module.params["fail_on_acme_error"]
             # Do request
-            if method == 'get':
-                data, info = client.get_request(url, parse_json_result=False, fail_on_error=False)
-            elif method == 'post':
+            if method == "get":
+                data, info = client.get_request(
+                    url, parse_json_result=False, fail_on_error=False
+                )
+            elif method == "post":
                 changed = True  # only POSTs can change
                 data, info = client.send_signed_request(
-                    url, to_bytes(module.params['content']), parse_json_result=False, encode_payload=False, fail_on_error=False)
+                    url,
+                    to_bytes(module.params["content"]),
+                    parse_json_result=False,
+                    encode_payload=False,
+                    fail_on_error=False,
+                )
+            else:
+                raise AssertionError("Can never be reached")  # pragma: no cover
             # Update results
-            result.update(dict(
-                headers=info,
-                output_text=to_native(data),
-            ))
+            result.update(
+                {
+                    "headers": info,
+                    "output_text": to_text(data),
+                }
+            )
             # See if we can parse the result as JSON
             try:
-                result['output_json'] = module.from_json(to_text(data))
-            except Exception as dummy:
+                result["output_json"] = module.from_json(to_text(data))
+            except Exception:
                 pass
             # Fail if error was returned
-            if fail_on_acme_error and info['status'] >= 400:
-                raise ACMEProtocolException(module, info=info, content=data)
+            if fail_on_acme_error and info["status"] >= 400:
+                raise ACMEProtocolException(module=module, info=info, content=data)
         # Done!
         module.exit_json(changed=changed, **result)
     except ModuleFailException as e:
-        e.do_fail(module, **result)
+        e.do_fail(module=module, **result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

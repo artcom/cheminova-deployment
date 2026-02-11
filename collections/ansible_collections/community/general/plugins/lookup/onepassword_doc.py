@@ -1,52 +1,51 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2023, Ansible Project
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
-DOCUMENTATION = '''
-    name: onepassword_doc
-    author:
-      - Sam Doran (@samdoran)
-    requirements:
-      - C(op) 1Password command line utility version 2 or later.
-    short_description: Fetch documents stored in 1Password
-    version_added: "8.1.0"
-    description:
-      - P(community.general.onepassword_doc#lookup) wraps C(op) command line utility to fetch one or more documents from 1Password.
-    notes:
-      - The document contents are a string exactly as stored in 1Password.
-      - This plugin requires C(op) version 2 or later.
+DOCUMENTATION = r"""
+name: onepassword_doc
+author:
+  - Sam Doran (@samdoran)
+requirements:
+  - C(op) 1Password command line utility version 2 or later.
+short_description: Fetch documents stored in 1Password
+version_added: "8.1.0"
+description:
+  - P(community.general.onepassword_doc#lookup) wraps C(op) command line utility to fetch one or more documents from 1Password.
+notes:
+  - The document contents are a string exactly as stored in 1Password.
+  - This plugin requires C(op) version 2 or later.
+options:
+  _terms:
+    description: Identifier(s) (case-insensitive UUID or name) of item(s) to retrieve.
+    required: true
+    type: list
+    elements: string
 
-    options:
-      _terms:
-        description: Identifier(s) (case-insensitive UUID or name) of item(s) to retrieve.
-        required: true
-        type: list
-        elements: string
+extends_documentation_fragment:
+  - community.general.onepassword
+  - community.general.onepassword.lookup
+"""
 
-    extends_documentation_fragment:
-      - community.general.onepassword
-      - community.general.onepassword.lookup
-'''
-
-EXAMPLES = """
+EXAMPLES = r"""
+---
 - name: Retrieve a private key from 1Password
   ansible.builtin.debug:
     var: lookup('community.general.onepassword_doc', 'Private key')
 """
 
-RETURN = """
-  _raw:
-    description: Requested document
-    type: list
-    elements: string
+RETURN = r"""
+_raw:
+  description: Requested document.
+  type: list
+  elements: string
 """
 
-from ansible_collections.community.general.plugins.lookup.onepassword import OnePass, OnePassCLIv2
 from ansible.plugins.lookup import LookupBase
+
+from ansible_collections.community.general.plugins.lookup.onepassword import OnePass, OnePassCLIv2
 
 
 class OnePassCLIv2Doc(OnePassCLIv2):

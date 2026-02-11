@@ -51,6 +51,12 @@ options:
     - Where passed queries run in a single transaction (C(yes)) or commit them one-by-one (C(no)).
     type: bool
     default: false
+  session_vars:
+     description:
+     - "Dictionary of session variables in form of C(variable: value) to set at the beginning of module execution."
+     - Cannot be used to set global variables, use the M(community.mysql.mysql_variables) module instead.
+     type: dict
+     version_added: '3.16.0'
 attributes:
   check_mode:
     support: none
@@ -136,6 +142,7 @@ from ansible_collections.community.mysql.plugins.module_utils.mysql import (
     mysql_common_argument_spec,
     mysql_driver,
     mysql_driver_fail_msg,
+    set_session_vars,
 )
 from ansible.module_utils._text import to_native
 
@@ -148,15 +155,23 @@ DDL_QUERY_KEYWORDS = ('CREATE', 'DROP', 'ALTER', 'RENAME', 'TRUNCATE')
 # Module execution.
 #
 
+def get_time():
+    try:
+        time_taken = time.perf_counter()
+    except AttributeError:
+        # For Python 2 compatibility, fallback to time.time()
+        time_taken = time.time()
+    return time_taken
+
 
 def execute_and_return_time(cursor, query, args):
     # Measure query execution time in milliseconds
-    start_time = time.perf_counter()
+    start_time = get_time()
 
     cursor.execute(query, args)
 
     # Calculate the execution time rounding it to 4 decimal places
-    exec_time_ms = round((time.perf_counter() - start_time) * 1000, 4)
+    exec_time_ms = round((get_time() - start_time) * 1000, 4)
     return cursor, exec_time_ms
 
 
@@ -168,6 +183,7 @@ def main():
         positional_args=dict(type='list', elements='raw'),
         named_args=dict(type='dict'),
         single_transaction=dict(type='bool', default=False),
+        session_vars=dict(type='dict'),
     )
 
     module = AnsibleModule(
@@ -187,6 +203,7 @@ def main():
     check_hostname = module.params['check_hostname']
     config_file = module.params['config_file']
     query = module.params["query"]
+    session_vars = module.params["session_vars"]
 
     if not isinstance(query, (str, list)):
         module.fail_json(msg="the query option value must be a string or list, passed %s" % type(query))
@@ -229,6 +246,9 @@ def main():
     changed = False
 
     max_keyword_len = len(max(DML_QUERY_KEYWORDS + DDL_QUERY_KEYWORDS, key=len))
+
+    if session_vars:
+        set_session_vars(module, cursor, session_vars)
 
     # Execute query:
     query_result = []

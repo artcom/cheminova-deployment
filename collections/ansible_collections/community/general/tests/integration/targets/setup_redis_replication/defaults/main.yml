@@ -6,25 +6,25 @@
 # General
 redis_packages:
   Alpine:
-  - redis
+    - redis
   Archlinux:
-  - redis
+    - valkey
   Debian:
-  - redis-server
+    - redis-server
   Ubuntu:
-  - redis-server
+    - redis-server
   openSUSE Leap:
-  - redis
+    - redis
   Fedora:
-  - redis
+    - redis
   CentOS:
-  - redis
+    - redis
   FreeBSD:
-  - redis
+    - redis
 
 redis_user:
   Alpine: redis
-  Archlinux: redis
+  Archlinux: valkey
   Debian: redis
   Ubuntu: redis
   openSUSE Leap: redis

@@ -50,6 +50,7 @@ notes:
 - Compatible with MariaDB or MySQL.
 - Calculating the size of a database might be slow, depending on the number and size of tables in it.
   To avoid this, use I(exclude_fields=db_size).
+- filters C(users_info) doesn't support MariaDB roles.
 
 attributes:
   check_mode:
@@ -146,11 +147,11 @@ EXAMPLES = r'''
       name: "{{ item.name }}"
       host: "{{ item.host }}"
       plugin: "{{ item.plugin | default(omit) }}"
-      plugin_auth_string: "{{ item.plugin_auth_string | default(omit) }}"
       plugin_hash_string: "{{ item.plugin_hash_string | default(omit) }}"
       tls_requires: "{{ item.tls_requires | default(omit) }}"
       priv: "{{ item.priv | default(omit) }}"
       resource_limits: "{{ item.resource_limits | default(omit) }}"
+      locked: "{{ item.locked | default(omit) }}"
       column_case_sensitive: true
       state: present
     loop: "{{ result.users_info }}"
@@ -160,6 +161,7 @@ EXAMPLES = r'''
       - item.name != 'root'  # In case you don't want to import admin accounts
       - item.name != 'mariadb.sys'
       - item.name != 'mysql'
+      - item.name != 'PUBLIC'  # MariaDB roles are not supported
 '''
 
 RETURN = r'''
@@ -244,18 +246,20 @@ users_info:
     - Does not support proxy privileges. If an account has proxy privileges, they won't appear in the output.
     - Causes issues with authentications plugins C(sha256_password) and C(caching_sha2_password).
       If the output is fed to M(community.mysql.mysql_user), the
-      ``plugin_auth_string`` will most likely be unreadable due to non-binary
+      ``plugin_hash_string`` will most likely be unreadable due to non-binary
       characters.
+    - The "locked" field was aded in ``community.mysql`` 3.13.
   returned: if not excluded by filter
   type: dict
   sample:
-  - { "plugin_auth_string": '*1234567',
+  - { "plugin_hash_string": '*1234567',
       "name": "user1",
       "host": "host.com",
       "plugin": "mysql_native_password",
       "priv": "db1.*:SELECT/db2.*:SELECT",
       "resource_limits": { "MAX_USER_CONNECTIONS": 100 },
-      "tls_requires": { "SSL": null } }
+      "tls_requires": { "SSL": null },
+      "locked": false }
   version_added: '3.8.0'
 engines:
   description: Information about the server's storage engines.
@@ -321,7 +325,6 @@ from ansible_collections.community.mysql.plugins.module_utils.user import (
     get_user_implementation,
     user_is_locked,
 )
-from ansible.module_utils.six import iteritems
 from ansible.module_utils._text import to_native
 
 
@@ -451,7 +454,7 @@ class MySQL_Info(object):
                 engine = line['Engine']
                 self.info['engines'][engine] = {}
 
-                for vname, val in iteritems(line):
+                for vname, val in line.items():
                     if vname != 'Engine':
                         self.info['engines'][engine][vname] = val
 
@@ -519,7 +522,7 @@ class MySQL_Info(object):
         res = self.__exec_sql(query)
         if res:
             for line in res:
-                for vname, val in iteritems(line):
+                for vname, val in line.items():
                     self.info['master_status'][vname] = self.__convert(val)
 
     def __get_slave_status(self):
@@ -528,20 +531,20 @@ class MySQL_Info(object):
         res = self.__exec_sql(query)
         if res:
             for line in res:
-                host = line['Master_Host']
+                host = line.get('Master_Host') or line.get('Source_Host')
                 if host not in self.info['slave_status']:
                     self.info['slave_status'][host] = {}
 
-                port = line['Master_Port']
+                port = line.get('Master_Port') or line.get('Source_Port')
                 if port not in self.info['slave_status'][host]:
                     self.info['slave_status'][host][port] = {}
 
-                user = line['Master_User']
+                user = line.get('Master_User') or line.get('Source_User')
                 if user not in self.info['slave_status'][host][port]:
                     self.info['slave_status'][host][port][user] = {}
 
-                for vname, val in iteritems(line):
-                    if vname not in ('Master_Host', 'Master_Port', 'Master_User'):
+                for vname, val in line.items():
+                    if vname not in ('Master_Host', 'Master_Port', 'Master_User', 'Source_Host', 'Source_Port', 'Source_User'):
                         self.info['slave_status'][host][port][user][vname] = self.__convert(val)
 
     def __get_slaves(self):
@@ -554,7 +557,7 @@ class MySQL_Info(object):
                 if srv_id not in self.info['slave_hosts']:
                     self.info['slave_hosts'][srv_id] = {}
 
-                for vname, val in iteritems(line):
+                for vname, val in line.items():
                     if vname != 'Server_id':
                         self.info['slave_hosts'][srv_id][vname] = self.__convert(val)
 
@@ -570,7 +573,7 @@ class MySQL_Info(object):
                 user = line['User']
                 self.info['users'][host][user] = {}
 
-                for vname, val in iteritems(line):
+                for vname, val in line.items():
                     if vname not in ('Host', 'User'):
                         self.info['users'][host][user][vname] = self.__convert(val)
 
@@ -603,7 +606,9 @@ class MySQL_Info(object):
             user = line['User']
             host = line['Host']
 
-            user_priv = privileges_get(self.cursor, user, host)
+            # MariaDB roles have no host
+            is_role = self.server_implementation == 'mariadb' and not host
+            user_priv = privileges_get(self.cursor, user, host, maria_role=is_role)
 
             if not user_priv:
                 self.module.warn("No privileges found for %s on host %s" % (user, host))
@@ -653,6 +658,8 @@ class MySQL_Info(object):
             authentications = get_existing_authentication(self.cursor, user, host)
             if authentications:
                 output_dict.update(authentications[0])
+                # https://github.com/ansible-collections/community.mysql/pull/629
+                output_dict.pop('plugin_auth_string', None)
 
             if line.get('is_role') and line['is_role'] == 'N':
                 output_dict['locked'] = user_is_locked(self.cursor, user, host)
