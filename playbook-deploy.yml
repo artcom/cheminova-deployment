@@ -16,38 +16,38 @@
         command: "uv run manage.py migrate"
 
   tasks:
-    # - name: update apt cache
-    #   ansible.builtin.apt:
-    #     cache_valid_time: 3600
+    - name: update apt cache
+      ansible.builtin.apt:
+        cache_valid_time: 3600
 
     - name: configure docker-compose deployment
       ansible.builtin.include_role:
         name: compose
 
-    # - name: configure gateway
-    #   ansible.builtin.include_role:
-    #     name: nginx_config
+    - name: configure gateway
+      ansible.builtin.include_role:
+        name: nginx_config
 
-    # - name: configure mc client
-    #   ansible.builtin.include_role:
-    #     name: mc_config
+    - name: configure mc client
+      ansible.builtin.include_role:
+        name: mc_config
 
-    # - name: set up database backup job
-    #   ansible.builtin.include_role:
-    #     name: database_backup
+    - name: set up database backup job
+      ansible.builtin.include_role:
+        name: database_backup
 
-    # - name: deploy frontend
-    #   ansible.builtin.include_role:
-    #     name: frontend
-    #   vars:
-    #     frontend_project: artcom/cheminova-frontend
-    #     frontend_project_name: cheminova-frontend
-    #     frontend_build: "{{ frontend_version }}"
-    #     frontend_route: frontend
-    #     frontend_config_file: config/frontend/config.json.j2
-    #     frontend_download_directory: "{{ download_dir }}"
-    #     frontend_www_directory: "{{ static_directory }}"
-    #     frontend_webserver_group: "{{ webserver_gid }}"
+    - name: deploy frontend
+      ansible.builtin.include_role:
+        name: frontend
+      vars:
+        frontend_project: artcom/cheminova-frontend
+        frontend_project_name: cheminova-frontend
+        frontend_build: "{{ frontend_version }}"
+        frontend_route: frontend
+        frontend_config_file: config/frontend/config.json.j2
+        frontend_download_directory: "{{ download_dir }}"
+        frontend_www_directory: "{{ static_directory }}"
+        frontend_webserver_group: "{{ webserver_gid }}"
 
     - name: docker-compose up # noqa no-changed-when
       ansible.builtin.command: "{{ compose_dir }}/compose-up.sh"
