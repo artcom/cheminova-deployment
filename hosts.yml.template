@@ -46,8 +46,8 @@ all:
     cheminova-review.acmade.de: # Replace with your domain
       local_hostname: cheminova
       compose_project_name: cheminova
-      backend_version: v2.8.8
-      frontend_version: v1.0.7
+      backend_version: v2.8.9
+      frontend_version: v1.0.11
       mc_alias: cheminova
       bucket_name: "{{ buckets[mc_alias].name }}"
       bucket_database_backup: "{{ bucket_name }}/db-dump"
