@@ -14,7 +14,7 @@ module: ini_file
 short_description: Tweak settings in INI files
 extends_documentation_fragment:
   - ansible.builtin.files
-  - community.general.attributes
+  - community.general._attributes
 description:
   - Manage (add, remove, change) individual settings in an INI-style file without having to manage the file as a whole with,
     say, M(ansible.builtin.template) or M(ansible.builtin.assemble).
@@ -270,21 +270,21 @@ from ansible.module_utils.common.text.converters import to_bytes, to_text
 
 def match_opt(option, line):
     option = re.escape(option)
-    return re.match(f"( |\t)*([#;]?)( |\t)*({option})( |\t)*(=|$)( |\t)*(.*)", line)
+    return re.match(rf"(?: |\t)*(?P<comment>[#;]?)(?: |\t)*{option}(?: |\t)*(?P<sep>=|$)(?: |\t)*(?P<value>.*)", line)
 
 
 def match_active_opt(option, line):
     option = re.escape(option)
-    return re.match(f"()()( |\t)*({option})( |\t)*(=|$)( |\t)*(.*)", line)
+    return re.match(rf"(?: |\t)*(?P<comment>){option}(?: |\t)*(?P<sep>=|$)(?: |\t)*(?P<value>.*)", line)
 
 
 def update_section_line(option, changed, section_lines, index, changed_lines, ignore_spaces, newline, msg):
     option_changed = None
     if ignore_spaces:
         old_match = match_opt(option, section_lines[index])
-        if not old_match.group(2):
+        if not old_match.group("comment"):
             new_match = match_opt(option, newline)
-            option_changed = old_match.group(8) != new_match.group(8)
+            option_changed = old_match.group("value") != new_match.group("value")
     if option_changed is None:
         option_changed = section_lines[index] != newline
     if option_changed:
@@ -301,7 +301,7 @@ def check_section_has_values(section_has_values, section_lines):
         for condition in section_has_values:
             for line in section_lines:
                 match = match_opt(condition["option"], line)
-                if match and (len(condition["values"]) == 0 or match.group(8) in condition["values"]):
+                if match and (len(condition["values"]) == 0 or match.group("value") in condition["values"]):
                     break
             else:
                 return False
@@ -391,10 +391,7 @@ def do_ini(
     within_section = not section
     section_start = section_end = 0
     msg = "OK"
-    if no_extra_spaces:
-        assignment_format = "%s=%s\n"
-    else:
-        assignment_format = "%s = %s\n"
+    sep = "=" if no_extra_spaces else " = "
 
     option_no_value_present = False
 
@@ -445,15 +442,15 @@ def do_ini(
         for index, line in enumerate(section_lines):
             if match_function(option, line):
                 match = match_function(option, line)
-                if values and match.group(8) in values:
-                    matched_value = match.group(8)
+                if values and match.group("value") in values:
+                    matched_value = match.group("value")
                     if not matched_value and allow_no_value:
                         # replace existing option with no value line(s)
                         newline = f"{option}\n"
                         option_no_value_present = True
                     else:
                         # replace existing option=value line(s)
-                        newline = assignment_format % (option, matched_value)
+                        newline = f"{option}{sep}{matched_value}\n"
                     (changed, msg) = update_section_line(
                         option, changed, section_lines, index, changed_lines, ignore_spaces, newline, msg
                     )
@@ -471,8 +468,11 @@ def do_ini(
         # override option with no value to option with value if not allow_no_value
         if len(values) > 0:
             for index, line in enumerate(section_lines):
-                if not changed_lines[index] and match_function(option, line):
-                    newline = assignment_format % (option, values.pop(0))
+                line_match = match_function(option, line) if not changed_lines[index] else None
+                # skip comment-only lines (e.g. "; output_buffering" with no "="):
+                # "comment" is the comment char, "sep" is "=" or "" (end-of-line match)
+                if line_match and not (line_match.group("comment") and not line_match.group("sep")):
+                    newline = f"{option}{sep}{values.pop(0)}\n"
                     (changed, msg) = update_section_line(
                         option, changed, section_lines, index, changed_lines, ignore_spaces, newline, msg
                     )
@@ -480,7 +480,9 @@ def do_ini(
                         break
         # remove all remaining option occurrences from the rest of the section
         for index in range(len(section_lines) - 1, 0, -1):
-            if not changed_lines[index] and match_function(option, section_lines[index]):
+            line_match = match_function(option, section_lines[index]) if not changed_lines[index] else None
+            # skip comment-only lines (no "=") — only remove active or commented config lines
+            if line_match and not (line_match.group("comment") and not line_match.group("sep")):
                 del section_lines[index]
                 del changed_lines[index]
                 changed = True
@@ -498,7 +500,7 @@ def do_ini(
                         # otherwise some of their options might appear in reverse order for whatever fancy reason ¯\_(ツ)_/¯
                         if element is not None:
                             # insert option=value line
-                            section_lines.insert(index, assignment_format % (option, element))
+                            section_lines.insert(index, f"{option}{sep}{element}\n")
                             msg = "option added"
                             changed = True
                         elif element is None and allow_no_value:
@@ -527,7 +529,7 @@ def do_ini(
                 new_section_lines = [
                     i
                     for i in section_lines
-                    if not (match_active_opt(option, i) and match_active_opt(option, i).group(8) in values)
+                    if not (match_active_opt(option, i) and match_active_opt(option, i).group("value") in values)
                 ]
                 if section_lines != new_section_lines:
                     changed = True
@@ -555,7 +557,7 @@ def do_ini(
                 if condition["option"] != option:
                     if len(condition["values"]) > 0:
                         for value in condition["values"]:
-                            ini_lines.append(assignment_format % (condition["option"], value))
+                            ini_lines.append(f"{condition['option']}{sep}{value}\n")
                     elif allow_no_value:
                         ini_lines.append(f"{condition['option']}\n")
                 elif not exclusive:
@@ -564,7 +566,7 @@ def do_ini(
                             values.append(value)
         if option and values:
             for value in values:
-                ini_lines.append(assignment_format % (option, value))
+                ini_lines.append(f"{option}{sep}{value}\n")
         elif option and not values and allow_no_value:
             ini_lines.append(f"{option}\n")
         else:

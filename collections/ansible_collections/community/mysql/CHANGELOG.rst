@@ -6,6 +6,101 @@ Community MySQL and MariaDB Collection Release Notes
 
 This changelog describes changes after version 2.0.0.
 
+v5.0.2
+======
+
+Release Summary
+---------------
+
+This is a patch release of community.mysql collections which only adds deprecation warnings to module redirects.
+
+v5.0.1
+======
+
+Release Summary
+---------------
+
+This is a patch release of the community.mysql collection. It contains a fix for compatibility with ansible.mysql.
+
+Bugfixes
+--------
+
+- Add action_groups to meta/runtime.yml to ensure that if the community.mysql action group is used, it also applies to ansible.mysql's action group.
+
+v5.0.0
+======
+
+Release Summary
+---------------
+
+This collection has been deprecated. Please use ``ansible.mysql`` instead - https://galaxy.ansible.com/ui/repo/published/ansible/mysql/. All the modules were moved to ``ansible.mysql`` as-is. Your current playbooks that call the modules from ``community.mysql`` will not require any changes and will continue working via redirects to the corresponding modules in ``ansible.mysql``, though we recommend changing FQCN parts in module names in playbook tasks as soon as possible (e.g. ``community.mysql.mysql_info`` -> ``ansible.mysql.mysql_info``).
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- All modules and plugins have been removed from this collection. They have been migrated to the `ansible.mysql <https://galaxy.ansible.com/ui/repo/published/ansible/mysql/>`_ collection. Redirections have been provided.
+  Please install ``ansible.mysql`` and adjust the FQCNs in your playbooks (``community.mysql.mysql_info`` → ``ansible.mysql.mysql_info``).
+
+Removed Features (previously deprecated)
+----------------------------------------
+
+- All modules and plugins have been removed from this collection. They have been migrated to the `ansible.mysql <https://galaxy.ansible.com/ui/repo/published/ansible/mysql/>`_ collection. Redirections have been provided.
+  Please install ``ansible.mysql`` and adjust the FQCNs in your playbooks (``community.mysql.mysql_info`` → ``ansible.mysql.mysql_info``).
+
+v4.2.1
+======
+
+Release Summary
+---------------
+
+This is a patch release of the ``community.mysql`` collection.
+This changelog contains all changes to the modules and plugins in this collection
+that have been made after the previous release.
+
+Bugfixes
+--------
+
+- mysql_query - fix ``Value of unknown type`` error when query results contain non-JSON-serializable types such as ``decimal.Decimal`` or ``datetime``. Results are now round-tripped through ``json.dumps(default=str)`` before being returned, coercing unserializable values to their string representation (https://github.com/ansible-collections/community.mysql/issues/783).
+
+v4.2.0
+======
+
+Release Summary
+---------------
+
+This is a minor release of the ``community.mysql`` collection.
+This changelog contains all breaking changes to the modules in this collection
+
+Minor Changes
+-------------
+
+- Update imports from ansible.module_utils._text to use ansible.module_utils.common.text.converters
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- Update imports from ansible.module_utils.six to use their python3 equivalent. This change will make this collection incompatible for managed hosts on python2.7.
+
+Bugfixes
+--------
+
+- mysql_user - When creating a new user, and specifying parsec as plugin it wil generate the wrong SQL query. It should be added to the same plugin check as ed25519 so that it generates a query using USING PASSWORDS(%s) instead of BY %s (https://github.com/ansible-collections/community.mysql/pull/779).
+
+v4.1.0
+======
+
+Release Summary
+---------------
+
+This is a minor release of the ``community.mysql`` collection.
+This changelog contains all breaking changes to the modules in this collection
+that have been added after the previous release.
+
+Minor Changes
+-------------
+
+- mysql_role - add ``sql_log_bin`` option to disable binary logging for the connection (https://github.com/ansible-collections/community.mysql/issues/742).
+
 v4.0.1
 ======
 

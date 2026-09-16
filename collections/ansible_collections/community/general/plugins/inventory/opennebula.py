@@ -1,4 +1,5 @@
 # Copyright (c) 2020, FELDSAM s.r.o. - FeldHost™ <support@feldhost.cz>
+# Copyright (c) 2026, Tom Paine, <github@aioue.net>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -11,7 +12,8 @@ author:
 short_description: OpenNebula inventory source
 version_added: "3.8.0"
 extends_documentation_fragment:
-  - constructed
+  - ansible.builtin.constructed
+  - community.library_inventory_filtering_v1.inventory_filter
 description:
   - Get inventory hosts from OpenNebula cloud.
   - Uses an YAML configuration file ending with either C(opennebula.yml) or C(opennebula.yaml) to set parameter values.
@@ -70,16 +72,65 @@ options:
     description: Create host groups by VM labels.
     type: bool
     default: true
+  prefer_existing_ansible_host:
+    description:
+      - When V(true), do not set C(ansible_host) if the host already has one from an earlier inventory source.
+      - When V(false), the plugin always sets C(ansible_host) from O(hostname), which is the historical behavior.
+    type: bool
+    default: false
+    version_added: 13.3.0
+  filters:
+    # This option is provided by the community.library_inventory_filtering_v1.inventory_filter doc fragment
+    version_added: 13.2.0
 """
 
 EXAMPLES = r"""
 # inventory_opennebula.yml file in YAML format
 # Example command line: ansible-inventory --list -i inventory_opennebula.yml
 
+---
 # Pass a label filter to the API
 plugin: community.general.opennebula
 api_url: https://opennebula:2633/RPC2
 filter_by_label: Cache
+
+---
+# Filter VMs by USER_TEMPLATE attributes on a shared instance.
+# Use "| default('')" so VMs missing the attribute are excluded rather than
+# causing an 'undefined' error.
+plugin: community.general.opennebula
+api_url: https://opennebula:2633/RPC2
+filters:
+  - include: >-
+      (PROJECT | default('')) == "myproject" and
+      (ENVIRONMENT | default('')) == "production"
+  - exclude: true
+
+---
+# Connect by VM name (useful with ~/.ssh/config Host aliases) and suppress
+# automatic label-based groups when labels are noisy or inconsistent.
+plugin: community.general.opennebula
+api_url: https://opennebula:2633/RPC2
+hostname: name
+group_by_labels: false
+
+---
+# Keep ansible_host from an earlier static inventory source instead of
+# overwriting it with the VM's IP address.
+plugin: community.general.opennebula
+api_url: https://opennebula:2633/RPC2
+prefer_existing_ansible_host: true
+
+---
+# Group VMs by their OpenNebula owner and group (UNAME/GNAME).
+# Produces groups like opennebula_group_Development, opennebula_owner_jsmith.
+plugin: community.general.opennebula
+api_url: https://opennebula:2633/RPC2
+keyed_groups:
+  - key: GNAME
+    prefix: opennebula_group
+  - key: UNAME
+    prefix: opennebula_owner
 """
 
 try:
@@ -90,12 +141,23 @@ except ImportError:
     HAS_PYONE = False
 
 import os
-from collections import namedtuple
+from dataclasses import dataclass
 
 from ansible.errors import AnsibleError
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible_collections.community.library_inventory_filtering_v1.plugins.plugin_utils.inventory_filter import (
+    filter_host,
+    parse_filters,
+)
 
-from ansible_collections.community.general.plugins.plugin_utils.unsafe import make_unsafe
+from ansible_collections.community.general.plugins.plugin_utils._unsafe import make_unsafe
+
+
+@dataclass
+class AuthParams:
+    url: str
+    username: str
+    password: str
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):
@@ -126,12 +188,13 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             except Exception as e:
                 raise AnsibleError(f"Error occurs when reading ONE_AUTH file at '{authfile}'") from e
 
-        auth_params = namedtuple("auth", ("url", "username", "password"))
-
-        return auth_params(url=url, username=username, password=password)
+        return AuthParams(url=url, username=username, password=password)
 
     def _get_vm_ipv4(self, vm):
         nic = vm.TEMPLATE.get("NIC")
+
+        if not nic:
+            return False
 
         if isinstance(nic, dict):
             nic = [nic]
@@ -144,6 +207,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
     def _get_vm_ipv6(self, vm):
         nic = vm.TEMPLATE.get("NIC")
+
+        if not nic:
+            return False
 
         if isinstance(nic, dict):
             nic = [nic]
@@ -196,6 +262,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
             server["name"] = vm.NAME
             server["id"] = vm.ID
+            server["UNAME"] = getattr(vm, "UNAME", "")
+            server["GNAME"] = getattr(vm, "GNAME", "")
             if hasattr(vm.HISTORY_RECORDS, "HISTORY") and vm.HISTORY_RECORDS.HISTORY:
                 server["host"] = vm.HISTORY_RECORDS.HISTORY[-1].HOSTNAME
             server["LABELS"] = labels
@@ -206,10 +274,39 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         return result
 
+    @staticmethod
+    def _coerce_ssh_port(raw):
+        """Return a valid TCP port number, or ``None`` if the value is unusable.
+
+        XML-RPC responses from OpenNebula sometimes wrap scalar values in a
+        dict (for example ``{"#text": "22"}``).  Passing that through to
+        ``ansible_port`` breaks OpenSSH with errors like
+        ``Connection to UNKNOWN port 65535``.
+        """
+        if raw in (None, "", False):
+            return None
+        if isinstance(raw, dict):
+            raw = (
+                raw.get("#text")
+                or raw.get("text")
+                or next((v for v in raw.values() if isinstance(v, (str, int)) and str(v).strip()), None)
+            )
+            if raw is None:
+                return None
+        try:
+            port = int(str(raw).strip(), 10)
+        except (TypeError, ValueError):
+            return None
+        if port < 1 or port > 65535:
+            return None
+        return port
+
     def _populate(self):
         hostname_preference = self.get_option("hostname")
+        prefer_existing_ansible_host = self.get_option("prefer_existing_ansible_host")
         group_by_labels = self.get_option("group_by_labels")
         strict = self.get_option("strict")
+        filters = parse_filters(self.get_option("filters"))
 
         # Add a top group 'one'
         self.inventory.add_group(group="all")
@@ -219,6 +316,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         for server in servers:
             server = make_unsafe(server)
             hostname = server["name"]
+
+            if not filter_host(self, hostname, server, filters):
+                continue
+
             # check for labels
             if group_by_labels and server["LABELS"]:
                 for label in server["LABELS"]:
@@ -231,12 +332,15 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 self.inventory.set_variable(hostname, attribute, value)
 
             if hostname_preference != "name":
-                self.inventory.set_variable(hostname, "ansible_host", server[hostname_preference])
+                existing = self.inventory.get_host(hostname)
+                if not prefer_existing_ansible_host or not existing or "ansible_host" not in existing.vars:
+                    self.inventory.set_variable(hostname, "ansible_host", server[hostname_preference])
 
-            if server.get("SSH_PORT"):
-                self.inventory.set_variable(hostname, "ansible_port", server["SSH_PORT"])
+            ssh_port = self._coerce_ssh_port(server.get("SSH_PORT"))
+            if ssh_port is not None:
+                self.inventory.set_variable(hostname, "ansible_port", ssh_port)
 
-            # handle construcable implementation: get composed variables if any
+            # handle constructable implementation: get composed variables if any
             self._set_composite_vars(self.get_option("compose"), server, hostname, strict=strict)
 
             # groups based on jinja conditionals get added to specific groups

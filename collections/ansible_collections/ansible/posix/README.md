@@ -2,7 +2,7 @@
 <!-- Add CI and code coverage badges here. Samples included below. -->
 [![Build Status](
 https://dev.azure.com/ansible/ansible.posix/_apis/build/status/CI?branchName=main)](https://dev.azure.com/ansible/ansible.posix/_build?definitionId=26)
-[![Run Status](https://api.shippable.com/projects/5e669aaf8b17a60007e4d18d/badge?branch=main)]() <!--[![Codecov](https://img.shields.io/codecov/c/github/ansible-collections/ansible.posix)](https://codecov.io/gh/ansible-collections/ansible.posix)-->
+[![Codecov](https://img.shields.io/codecov/c/github/ansible-collections/ansible.posix)](https://codecov.io/gh/ansible-collections/ansible.posix)
 
 ## Communication
 
@@ -21,7 +21,7 @@ An Ansible Collection of modules and plugins that target POSIX UNIX/Linux and de
 * Python:
   * The Python interpreter version must meet Ansible Core's requirements.
 * Ansible Core:
-  - ansible-core 2.15 or later
+  - ansible-core 2.16 or later
 
 ## Installation
 
@@ -46,10 +46,10 @@ To upgrade the collection to the latest available version, run the following com
 ansible-galaxy collection install ansible.posix --upgrade
 ```
 
-You can also install a specific version of the collection, for example, if you need to downgrade when something is broken in the latest version (please report an issue in this repository). Use the following syntax to install version 1.0.0:
+You can also install a specific version of the collection, for example, if you need to downgrade when something is broken in the latest version (please report an issue in this repository). Use the following syntax to install version 2.0.0:
 
 ```shell
-ansible-galaxy collection install ansible.posix:==1.0.0
+ansible-galaxy collection install ansible.posix:==2.0.0
 ```
 
 See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
@@ -78,11 +78,15 @@ ansible-doc -t callback ansible.posix.profile_tasks
 
 The following ansible-core versions have been tested with this collection:
 
-- ansible-core 2.19 (devel)
-- ansible-core 2.18 (stable) *
-- ansible-core 2.17 (stable)
-- ansible-core 2.16 (stable)
-- ansible-core 2.15 (stable)
+- ansible-core 2.22 (devel)
+- ansible-core 2.21 (stable)
+- ansible-core 2.20 (stable)
+- ansible-core 2.19 (stable)
+- ansible-core 2.18 (LTS)
+- ansible-core 2.17 (EoL)
+- ansible-core 2.16 (EoL)
+
+For most up to date support info, see the [ansible-core support matrix](https://docs.ansible.com/projects/ansible/latest/reference_appendices/release_and_maintenance.html#ansible-core-support-matrix)
 
 ## Contributing
 
@@ -95,7 +99,8 @@ We welcome community contributions to this collection. For more details, see [Co
 
 ## Support
 
-See [Communication](#Communication) section.
+* Community users can find help through the [Communication](#Communication) section.
+* Red Hat Ansible Automation Platform subscribers can request support through [Automation Hub](https://console.redhat.com/ansible/automation-hub/collections/published/ansible/posix/) by using the "Create issue" button on the collection page.
 
 ## Release Notes and Roadmap
 

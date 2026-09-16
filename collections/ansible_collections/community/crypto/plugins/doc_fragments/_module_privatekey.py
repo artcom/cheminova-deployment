@@ -34,9 +34,21 @@ options:
   type:
     description:
       - The algorithm used to generate the TLS/SSL private key.
+      - Support for V(ML-DSA-44), V(ML-DSA-65), and V(ML-DSA-87) has been added in community.crypto 3.3.0.
+        They require cryptography 47.0.0 or later, and require support in the specific cryptographic backend used by cryptography.
     type: str
     default: RSA
-    choices: [DSA, ECC, Ed25519, Ed448, RSA, X25519, X448]
+    choices:
+      - DSA
+      - ECC
+      - Ed25519
+      - Ed448
+      - RSA
+      - X25519
+      - X448
+      - ML-DSA-44
+      - ML-DSA-65
+      - ML-DSA-87
   curve:
     description:
       - Note that not all curves are supported by all versions of C(cryptography).
@@ -81,7 +93,7 @@ options:
       - The default choice is V(auto), which tries to use C(cryptography) if available.
       - If set to V(cryptography), will try to use the L(cryptography,https://cryptography.io/) library.
       - Note that with community.crypto 3.0.0, all values behave the same.
-        This option will be deprecated in a later version.
+        This option is deprecated and will be removed from community.crypto 4.0.0.
         We recommend to not set it explicitly.
     type: str
     default: auto
@@ -111,8 +123,7 @@ options:
       - Allows to configure in which situations the module is allowed to regenerate private keys. The module will always generate
         a new key if the destination file does not exist.
       - By default, the key will be regenerated when it does not match the module's options, except when the key cannot be
-        read or the passphrase does not match. Please note that this B(changed) for Ansible 2.10. For Ansible 2.9, the behavior
-        was as if V(full_idempotence) is specified.
+        read or the passphrase does not match.
       - If set to V(never), the module will fail if the key cannot be read or the passphrase is not matching, and will never
         regenerate an existing key.
       - If set to V(fail), the module will fail if the key does not correspond to the module's options.

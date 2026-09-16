@@ -15,7 +15,7 @@ short_description: Manage Networking
 requirements:
   - nmcli
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 description:
   - Manage the network devices. Create, modify and manage various connection and device type, for example V(ethernet), V(team),
     V(bond), V(vlan) and so on.
@@ -121,9 +121,21 @@ options:
   mode:
     description:
       - This is the type of device or network connection that you wish to create for a bond or bridge.
+      - When creating a new bond, NetworkManager's default mode V(balance-rr) is used if this option is not provided.
+      - When omitted for an existing bond connection, the module uses the behavior selected by O(bond_mode_behavior).
+      - This option only applies when O(type=bond).
     type: str
     choices: [802.3ad, active-backup, balance-alb, balance-rr, balance-tlb, balance-xor, broadcast]
-    default: balance-rr
+  bond_mode_behavior:
+    description:
+      - Controls how the module behaves when O(mode) is omitted on an existing bond connection.
+      - When set to V(preserve), the module leaves the current bond mode unchanged.
+      - When set to V(reset), the module uses the legacy default V(balance-rr).
+      - This option only applies when O(type=bond).
+    type: str
+    choices: [preserve, reset]
+    default: reset
+    version_added: 13.3.0
   transport_mode:
     description:
       - This option sets the connection type of Infiniband IPoIB devices.
@@ -1705,6 +1717,7 @@ RETURN = r"""#
 import re
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.locale import get_best_parsable_locale
 from ansible.module_utils.common.text.converters import to_text
 
 
@@ -1783,6 +1796,7 @@ class Nmcli:
         self.stp = module.params["stp"]
         self.priority = module.params["priority"]
         self.mode = module.params["mode"]
+        self.bond_mode_behavior = module.params["bond_mode_behavior"]
         self.miimon = module.params["miimon"]
         self.primary = module.params["primary"]
         self.downdelay = module.params["downdelay"]
@@ -1938,19 +1952,21 @@ class Nmcli:
 
         # Options specific to a connection type.
         if self.type == "bond":
-            options.update(
-                {
-                    "arp-interval": self.arp_interval,
-                    "arp-ip-target": self.arp_ip_target,
-                    "downdelay": self.downdelay,
-                    "miimon": self.miimon,
-                    "mode": self.mode,
-                    "primary": self.primary,
-                    "updelay": self.updelay,
-                    "xmit_hash_policy": self.xmit_hash_policy,
-                    "fail_over_mac": self.fail_over_mac,
-                }
-            )
+            bond_options = {
+                "arp_interval": self.arp_interval,
+                "arp_ip_target": self.arp_ip_target,
+                "downdelay": self.downdelay,
+                "miimon": self.miimon,
+                "primary": self.primary,
+                "updelay": self.updelay,
+                "xmit_hash_policy": self.xmit_hash_policy,
+                "fail_over_mac": self.fail_over_mac,
+            }
+            if self.mode is not None:
+                bond_options["mode"] = self.mode
+            elif self.bond_mode_behavior == "reset":
+                bond_options["mode"] = "balance-rr"
+            options.update(bond_options)
         elif self.type == "bond-slave":
             if self.slave_type and self.slave_type != "bond":
                 self.module.fail_json(
@@ -2357,6 +2373,7 @@ class Nmcli:
             "ipv6.ignore-auto-routes",
             "802-11-wireless.hidden",
             "team.runner-fast-rate",
+            "macvlan.tap",
         }:
             return bool
         elif setting in {
@@ -2371,6 +2388,7 @@ class Nmcli:
             "ipv6.dns-search",
             "ipv6.dns-options",
             "ipv6.routes",
+            "ipv6.routing-rules",
             "802-11-wireless-security.group",
             "802-11-wireless-security.leap-password-flags",
             "802-11-wireless-security.pairwise",
@@ -2399,7 +2417,7 @@ class Nmcli:
         return [self.route_to_string(route_params) for route_params in routes_params]
 
     def list_connection_info(self):
-        cmd = [self.nmcli_bin, "--fields", "name", "--terse", "con", "show"]
+        cmd = [self.nmcli_bin, "--fields", "name", "--terse", "--escape", "no", "con", "show"]
         (rc, out, err) = self.execute_command(cmd)
         if rc != 0:
             raise NmcliModuleError(err)
@@ -2414,7 +2432,7 @@ class Nmcli:
 
     def get_connection_state(self):
         """Get the current state of the connection"""
-        cmd = [self.nmcli_bin, "--terse", "--fields", "GENERAL.STATE", "con", "show", self.conn_name]
+        cmd = [self.nmcli_bin, "--terse", "--escape", "no", "--fields", "GENERAL.STATE", "con", "show", self.conn_name]
         (rc, out, err) = self.execute_command(cmd)
         if rc != 0:
             raise NmcliModuleError(err)
@@ -2471,11 +2489,8 @@ class Nmcli:
                 if key in self.SECRET_OPTIONS:
                     self.edit_commands += [f"set {key} {value}"]
                     continue
-                if key == "xmit_hash_policy":
-                    cmd.extend(["+bond.options", f"xmit_hash_policy={value}"])
-                    continue
-                if key == "fail_over_mac":
-                    cmd.extend(["+bond.options", f"fail_over_mac={value}"])
+                if key in ("xmit_hash_policy", "fail_over_mac", "arp_interval", "arp_ip_target"):
+                    cmd.extend(["+bond.options", f"{key}={value}"])
                     continue
                 cmd.extend([key, value])
 
@@ -2677,7 +2692,7 @@ class Nmcli:
             elif all(
                 [
                     key == self.mtu_setting,
-                    self.type == "dummy",
+                    self.type in ("bond", "bond-slave", "dummy"),
                     current_value is None,
                     value == "auto",
                     self.mtu is None,
@@ -2818,7 +2833,6 @@ def create_module() -> AnsibleModule:
             # Bond Specific vars
             mode=dict(
                 type="str",
-                default="balance-rr",
                 choices=[
                     "802.3ad",
                     "active-backup",
@@ -2829,6 +2843,7 @@ def create_module() -> AnsibleModule:
                     "broadcast",
                 ],
             ),
+            bond_mode_behavior=dict(type="str", choices=["preserve", "reset"], default="reset"),
             miimon=dict(type="int"),
             downdelay=dict(type="int"),
             updelay=dict(type="int"),
@@ -2913,7 +2928,8 @@ def create_module() -> AnsibleModule:
         ],
         supports_check_mode=True,
     )
-    module.run_command_environ_update = dict(LANG="C", LC_ALL="C", LC_MESSAGES="C", LC_CTYPE="C")
+    locale = get_best_parsable_locale(module)
+    module.run_command_environ_update = dict(LANGUAGE=locale, LC_ALL=locale)
     return module
 
 

@@ -14,7 +14,7 @@ description:
 author:
   - Bruce Smith (@SmithX10)
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -193,7 +193,7 @@ def main():
         state=nictag.state,
     )
 
-    if not nictag.is_valid_mac():
+    if not nictag.etherstub and not nictag.is_valid_mac():
         module.fail_json(msg="Invalid MAC Address Value", name=nictag.name, mac=nictag.mac, etherstub=nictag.etherstub)
 
     if nictag.state == "absent":

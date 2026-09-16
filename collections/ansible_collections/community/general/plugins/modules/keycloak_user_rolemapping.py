@@ -99,12 +99,13 @@ options:
           - This parameter is not required for updating or deleting a role_representation but providing it reduces the number
             of API calls required.
 extends_documentation_fragment:
-  - community.general.keycloak
-  - community.general.keycloak.actiongroup_keycloak
-  - community.general.attributes
+  - community.general._keycloak
+  - community.general._keycloak.actiongroup_keycloak
+  - community.general._attributes
 
 author:
   - Dušan Marković (@bratwurzt)
+  - Ivan Kokalović (@koke1997)
 """
 
 EXAMPLES = r"""
@@ -240,7 +241,7 @@ end_state:
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import (
+from ansible_collections.community.general.plugins.module_utils._keycloak import (
     KeycloakAPI,
     KeycloakError,
     get_token,
@@ -356,9 +357,9 @@ def main():
                     if role_rep is not None:
                         role["name"] = role_rep["name"]
                 else:
-                    role["name"] = kc.get_client_user_rolemapping_by_id(
-                        uid=uid, cid=cid, rid=role.get("id"), realm=realm
-                    )["name"]
+                    role_rep = kc.get_client_user_rolemapping_by_id(uid=uid, cid=cid, rid=role.get("id"), realm=realm)
+                    if role_rep is not None:
+                        role["name"] = role_rep["name"]
                 if role.get("name") is None:
                     module.fail_json(
                         msg=f"Could not fetch role {role.get('id')} for client_id {client_id} or realm {realm}"

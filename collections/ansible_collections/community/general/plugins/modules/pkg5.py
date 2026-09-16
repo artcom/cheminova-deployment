@@ -16,7 +16,7 @@ description:
 notes:
   - The naming of IPS packages is explained at U(http://www.oracle.com/technetwork/articles/servers-storage-admin/ips-package-versioning-2232906.html).
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -101,6 +101,7 @@ def main():
         ),
         supports_check_mode=True,
     )
+    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     params = module.params
     packages = []
@@ -133,7 +134,7 @@ def ensure(module, state, packages, params):
             "subcommand": "install",
         },
         "latest": {
-            "filter": lambda p: (not is_installed(module, p) or not is_latest(module, p)),
+            "filter": lambda p: not is_installed(module, p) or not is_latest(module, p),
             "subcommand": "install",
         },
         "absent": {

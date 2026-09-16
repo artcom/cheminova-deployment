@@ -16,7 +16,7 @@ description:
   - Manages C(apk) packages for Alpine Linux.
 author: "Kevin Brebanov (@kbrebanov)"
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -78,6 +78,10 @@ notes:
   - O(name) and O(upgrade) are mutually exclusive.
   - When used with a C(loop:) each package is processed individually, it is much more efficient to pass the list directly
     to the O(name) option.
+  - This module expects C(apk) to run in non-interactive mode. On Chimera Linux, C(apk) runs interactively by default,
+    which will cause this module to hang. Interactive mode can be configured in C(/etc/apk/config). Even though not
+    officially supported, other systems using C(apk) should be able to use this module, as long as C(apk) is running
+    in non-interactive mode by default.
 """
 
 EXAMPLES = r"""
@@ -246,11 +250,14 @@ def upgrade_packages(module, available):
     packagelist = parse_for_packages(stdout)
     if rc != 0:
         module.fail_json(msg="failed to upgrade packages", stdout=stdout, stderr=stderr, packages=packagelist)
-    if re.search(r"^OK", stdout):
-        module.exit_json(
-            changed=False, msg="packages already upgraded", stdout=stdout, stderr=stderr, packages=packagelist
-        )
-    module.exit_json(changed=True, msg="upgraded packages", stdout=stdout, stderr=stderr, packages=packagelist)
+    # apk prints a "(n/m) <verb> <package> ..." line for every package it changes, so the parsed
+    # package list is the authoritative signal of whether anything was upgraded. Do not rely on the
+    # trailing "OK:" summary line: apk commit hooks (for example mrtest, or anything in
+    # /etc/apk/commit_hooks.d/) print banner lines before it, which broke the previous check and
+    # reported changed even when nothing was upgraded (see https://github.com/ansible-collections/community.general/issues/12223).
+    if packagelist:
+        module.exit_json(changed=True, msg="upgraded packages", stdout=stdout, stderr=stderr, packages=packagelist)
+    module.exit_json(changed=False, msg="packages already upgraded", stdout=stdout, stderr=stderr, packages=packagelist)
 
 
 def install_packages(module, names, state, world):
@@ -342,7 +349,7 @@ def main():
     )
 
     # Set LANG env since we parse stdout
-    module.run_command_environ_update = dict(LANG="C", LC_ALL="C", LC_MESSAGES="C", LC_CTYPE="C")
+    module.run_command_environ_update = dict(LANGUAGE="C", LC_ALL="C")
 
     global APK_PATH
     APK_PATH = [module.get_bin_path("apk", required=True)]

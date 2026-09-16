@@ -2,7 +2,7 @@
  "collection_info": {
   "namespace": "devsec",
   "name": "hardening",
-  "version": "10.5.0",
+  "version": "10.6.0",
   "authors": [
    "dev-sec <hello@dev-sec.io>"
   ],
@@ -45,7 +45,7 @@
   "name": "FILES.json",
   "ftype": "file",
   "chksum_type": "sha256",
-  "chksum_sha256": "7fef771eb4d540bdfffee5fac0befbeedb12620923166d54df957cccb447efcc",
+  "chksum_sha256": "0a4b4fccf9de5b62d58aef0050d74fe6325ec6ccfef709f8604e86b9d0c44154",
   "format": 1
  },
  "format": 1

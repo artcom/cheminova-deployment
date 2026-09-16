@@ -14,7 +14,7 @@ description:
     for packages and excludes all other versions of those packages. This allows you to for example protect packages from being
     updated by newer versions. The state of the plugin that reflects locking of packages is the C(locklist).
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: partial
@@ -57,7 +57,6 @@ notes:
   - In an ideal world, the C(versionlock) plugin would have a dry-run option to know for sure what is going to happen. So
     far we have to work with a best guess as close as possible to the behaviour inferred from its code.
   - For most of cases where you want to lock and unlock specific versions of a package, this works fairly well.
-  - Does not work with C(dnf5).
 requirements:
   - dnf
   - dnf-plugin-versionlock
@@ -257,6 +256,7 @@ def main():
         ),
         supports_check_mode=True,
     )
+    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     patterns = module.params["name"]
     raw = module.params["raw"]

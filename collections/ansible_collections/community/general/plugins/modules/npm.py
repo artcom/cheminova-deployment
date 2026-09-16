@@ -12,7 +12,7 @@ description:
   - Manage node.js packages with Node Package Manager (npm).
 author: "Chris Hoffman (@chrishoffman)"
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -150,7 +150,7 @@ import re
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.cmd_runner import CmdRunner, cmd_runner_fmt
+from ansible_collections.community.general.plugins.module_utils._cmd_runner import CmdRunner, cmd_runner_fmt
 
 
 class Npm:
@@ -229,8 +229,15 @@ class Npm:
         installed = list()
         missing = list()
         data = {}
+        out = self._exec(cmd, True, False, False) or "{}"
+        # npm may print warnings/notices to stdout ahead of (or after) the JSON
+        # payload, which breaks strict JSON parsing. Skip to the first '{'
+        # that starts a line (ignoring leading whitespace), then decode only
+        # the JSON value found there, ignoring any trailing noise npm appends.
+        start_match = re.search(r"^[ \t]*(\{)", out, re.MULTILINE)
+        start = start_match.start(1) if start_match else 0
         try:
-            data = json.loads(self._exec(cmd, True, False, False) or "{}")
+            data, _end = json.JSONDecoder().raw_decode(out, start)
         except getattr(json, "JSONDecodeError", ValueError) as e:
             self.module.fail_json(msg=f"Failed to parse NPM output with error {e}")
         if "dependencies" in data:

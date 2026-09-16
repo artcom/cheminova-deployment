@@ -8,6 +8,7 @@ import typing as t
 from io import StringIO
 
 import pytest
+from ansible.errors import AnsibleError
 from ansible.playbook.play_context import PlayContext
 from ansible.plugins.loader import connection_loader
 
@@ -104,6 +105,156 @@ BUILD_CMD_TEST_CASES: list[dict[str, t.Any]] = [
         ),
         output=[r"C:\CMD", "/c", "some-command /flag1 /flag2"],
     ),
+    dict(
+        id="powershell encoded command strips quotes",
+        input=dict(
+            cmd="""powershell -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -EncodedCommand 'cABhAHIAYQBtAA=='""",
+            shell="powershell",
+        ),
+        output=[
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Unrestricted",
+            "-EncodedCommand",
+            "cABhAHIAYQBtAA==",
+        ],
+    ),
+    dict(
+        id="powershell encoded command strips double quotes",
+        input=dict(
+            cmd='''powershell -NoProfile -EncodedCommand "cABhAHIAYQBtAA=="''',
+            shell="powershell",
+        ),
+        output=[
+            "powershell",
+            "-NoProfile",
+            "-EncodedCommand",
+            "cABhAHIAYQBtAA==",
+        ],
+    ),
+    dict(
+        id="powershell encoded command case-insensitive keyword",
+        input=dict(
+            cmd="""powershell -NoProfile -eNcOdEdCoMmAnD 'cABhAHIAYQBtAA=='""",
+            shell="powershell",
+        ),
+        output=[
+            "powershell",
+            "-NoProfile",
+            "-eNcOdEdCoMmAnD",
+            "cABhAHIAYQBtAA==",
+        ],
+    ),
+    dict(
+        id="powershell encoded command keeps surrounding flags",
+        input=dict(
+            cmd="""powershell -NoProfile -EncodedCommand 'cABhAHIAYQBtAA==' -InputFormat None""",
+            shell="powershell",
+        ),
+        output=[
+            "powershell",
+            "-NoProfile",
+            "-EncodedCommand",
+            "cABhAHIAYQBtAA==",
+            "-InputFormat",
+            "None",
+        ],
+    ),
+    dict(
+        id="powershell -enc alias strips quotes",
+        input=dict(
+            cmd="""powershell -NoProfile -enc 'cABhAHIAYQBtAA=='""",
+            shell="powershell",
+        ),
+        output=[
+            "powershell",
+            "-NoProfile",
+            "-enc",
+            "cABhAHIAYQBtAA==",
+        ],
+    ),
+    dict(
+        id="powershell -Command with spaces in path",
+        input=dict(
+            cmd="""powershell.exe -NonInteractive -Command 'Write-Host "hello"; & \\'C:\\My Scripts\\run me.ps1\\''""",
+            shell="powershell",
+        ),
+        output=[
+            "powershell.exe",
+            "-NonInteractive",
+            "-Command",
+            """Write-Host "hello"; & \\'C:\\My Scripts\\run me.ps1\\'""",
+        ],
+    ),
+    dict(
+        id="powershell -File with spaces in path",
+        input=dict(
+            cmd='''powershell.exe -NonInteractive -File "C:\\My Scripts\\run me.ps1"''',
+            shell="powershell",
+        ),
+        output=[
+            "powershell.exe",
+            "-NonInteractive",
+            "-File",
+            r"C:\My Scripts\run me.ps1",
+        ],
+    ),
+    dict(
+        id="powershell -File single quoted path with trailing args",
+        input=dict(
+            cmd="""powershell.exe -NoProfile -File 'C:\\My Scripts\\run me.ps1' -Arg1 value""",
+            shell="powershell",
+        ),
+        output=[
+            "powershell.exe",
+            "-NoProfile",
+            "-File",
+            r"C:\My Scripts\run me.ps1",
+            "-Arg1",
+            "value",
+        ],
+    ),
+    dict(
+        id="powershell -F alias with spaces in path",
+        input=dict(
+            cmd='''powershell.exe -NoProfile -F "C:\\My Scripts\\run me.ps1"''',
+            shell="powershell",
+        ),
+        output=[
+            "powershell.exe",
+            "-NoProfile",
+            "-F",
+            r"C:\My Scripts\run me.ps1",
+        ],
+    ),
+    dict(
+        id="powershell -Command outer double quotes",
+        input=dict(
+            cmd='''powershell.exe -NoProfile -Command "Write-Host 'hello world'"''',
+            shell="powershell",
+        ),
+        output=[
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "Write-Host 'hello world'",
+        ],
+    ),
+    dict(
+        id="powershell -Command empty quoted payload",
+        input=dict(
+            cmd='''powershell.exe -NoProfile -Command ""''',
+            shell="powershell",
+        ),
+        output=[
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "",
+        ],
+    ),
 ]
 
 
@@ -134,3 +285,108 @@ def test_build_command(mocker, testcase):
     built = conn._build_command(testcase["input"]["cmd"])
     tc_cmd = cli_preamble + testcase["output"]
     assert built == tc_cmd, f"\n   built = {built}\ntestcase = {tc_cmd}"
+
+
+def _make_conn(mocker):
+    mocker.patch("ansible.module_utils.common.process.get_bin_path").return_value = "/test/bin/incus"
+    play_context = PlayContext()
+    play_context.shell = "sh"
+    conn = connection_loader.get("community.general.incus", play_context, StringIO())
+    conn.set_option("remote_addr", "server1")
+    conn.set_option("remote_user", "root")
+    return conn
+
+
+def test_put_file_transfer_failure(mocker, tmp_path):
+    """A failed ``incus file push`` must raise instead of silently succeeding."""
+    conn = _make_conn(mocker)
+
+    src = tmp_path / "payload"
+    src.write_text("data")
+
+    process = mocker.MagicMock()
+    process.communicate.return_value = (b"", b"Error: not authorized\n")
+    process.returncode = 1
+    mocker.patch("ansible_collections.community.general.plugins.connection.incus.Popen", return_value=process)
+
+    with pytest.raises(AnsibleError) as exc:
+        conn.put_file(str(src), "/tmp/dest")
+
+    assert "failed to transfer file to instance server1" in str(exc.value)
+    assert "Error: not authorized" in str(exc.value)
+
+
+def test_put_file_transfer_success(mocker, tmp_path):
+    """A successful ``incus file push`` must not raise."""
+    conn = _make_conn(mocker)
+
+    src = tmp_path / "payload"
+    src.write_text("data")
+
+    process = mocker.MagicMock()
+    process.communicate.return_value = (b"", b"")
+    process.returncode = 0
+    mocker.patch("ansible_collections.community.general.plugins.connection.incus.Popen", return_value=process)
+
+    conn.put_file(str(src), "/tmp/dest")
+
+
+def test_fetch_file_transfer_failure(mocker):
+    """A failed ``incus file pull`` must raise instead of silently succeeding."""
+    conn = _make_conn(mocker)
+
+    process = mocker.MagicMock()
+    process.communicate.return_value = (b"", b"Error: Instance is not running.\n")
+    process.returncode = 1
+    mocker.patch("ansible_collections.community.general.plugins.connection.incus.Popen", return_value=process)
+
+    with pytest.raises(AnsibleError) as exc:
+        conn.fetch_file("/tmp/src", "/tmp/dest")
+
+    assert "failed to transfer file from instance server1" in str(exc.value)
+    assert "Error: Instance is not running." in str(exc.value)
+
+
+def test_fetch_file_transfer_success(mocker):
+    """A successful ``incus file pull`` must not raise."""
+    conn = _make_conn(mocker)
+
+    process = mocker.MagicMock()
+    process.communicate.return_value = (b"", b"")
+    process.returncode = 0
+    mocker.patch("ansible_collections.community.general.plugins.connection.incus.Popen", return_value=process)
+
+    conn.fetch_file("/tmp/src", "/tmp/dest")
+
+
+def test_get_remote_uid_gid_default_command(mocker):
+    """By default ``/bin/id`` is used to resolve the remote UID and GID."""
+    conn = _make_conn(mocker)
+
+    exec_command = mocker.patch.object(conn, "exec_command", side_effect=[(0, "1001\n", ""), (0, "2002\n", "")])
+
+    assert conn._get_remote_uid_gid() == (1001, 2002)
+    assert [call.args[0] for call in exec_command.call_args_list] == ["/bin/id -u", "/bin/id -g"]
+
+
+def test_get_remote_uid_gid_custom_command(mocker):
+    """``remote_user_id_command`` overrides the command used to resolve the remote UID and GID."""
+    conn = _make_conn(mocker)
+    conn.set_option("remote_user_id_command", "/usr/bin/id")
+
+    exec_command = mocker.patch.object(conn, "exec_command", side_effect=[(0, "1001\n", ""), (0, "2002\n", "")])
+
+    assert conn._get_remote_uid_gid() == (1001, 2002)
+    assert [call.args[0] for call in exec_command.call_args_list] == ["/usr/bin/id -u", "/usr/bin/id -g"]
+
+
+def test_get_remote_uid_gid_failure(mocker):
+    """A failing ``id`` command must raise instead of returning bogus IDs."""
+    conn = _make_conn(mocker)
+
+    mocker.patch.object(conn, "exec_command", return_value=(1, "", "id: command not found"))
+
+    with pytest.raises(AnsibleError) as exc:
+        conn._get_remote_uid_gid()
+
+    assert "Failed to get remote uid for user root" in str(exc.value)

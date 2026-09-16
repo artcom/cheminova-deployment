@@ -25,6 +25,10 @@ options:
       - If O(backend=gopass), then the default is the C(path) field in C(~/.config/gopass/config.yml), falling back to V(~/.local/share/gopass/stores/root)
         if C(path) is not defined in the gopass config.
     type: path
+    ini:
+      - section: passwordstore_lookup
+        key: directory
+        version_added: 13.2.0
     vars:
       - name: passwordstore
     env:
@@ -49,6 +53,13 @@ options:
     description: Return all the content of the password, not only the first line.
     type: bool
     default: false
+  keep_trailing_newline:
+    description:
+      - Keep the trailing newline in the password file content when O(returnall=true).
+      - Only used when O(returnall=true), ignored otherwise.
+    type: bool
+    default: false
+    version_added: 13.4.0
   subkey:
     description:
       - By default return a specific subkey of the password. When set to V(password), always returns the first line.
@@ -229,6 +240,10 @@ tasks.yml: |-
   - name: Return the entire password file content
     ansible.builtin.set_fact:
       passfilecontent: "{{ lookup('community.general.passwordstore', 'example/test', returnall=true)}}"
+
+  - name: Return the entire password file content, keeping its trailing newline
+    ansible.builtin.set_fact:
+      passfilecontent: "{{ lookup('community.general.passwordstore', 'example/test', returnall=true, keep_trailing_newline=true)}}"
 """
 
 RETURN = r"""
@@ -255,42 +270,26 @@ from ansible.utils.display import Display
 from ansible.utils.encrypt import random_password
 
 from ansible_collections.community.general.plugins.module_utils._filelock import FileLock
+from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
 
 display = Display()
 
 
-# backhacked check_output with input for python 2.7
-# http://stackoverflow.com/questions/10103551/passing-data-to-subprocess-check-output
-# note: contains special logic for calling 'pass', so not a drop-in replacement for check_output
-def check_output2(*popenargs, **kwargs):
-    if "stdout" in kwargs:
-        raise ValueError("stdout argument not allowed, it will be overridden.")
-    if "stderr" in kwargs:
-        raise ValueError("stderr argument not allowed, it will be overridden.")
-    if "input" in kwargs:
-        if "stdin" in kwargs:
-            raise ValueError("stdin and input arguments may not both be used.")
-        b_inputdata = to_bytes(kwargs["input"], errors="surrogate_or_strict")
-        del kwargs["input"]
-        kwargs["stdin"] = subprocess.PIPE
-    else:
-        b_inputdata = None
-    process = subprocess.Popen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
-    try:
-        b_out, b_err = process.communicate(b_inputdata)
-    except Exception:
-        process.kill()
-        process.wait()
-        raise
-    retcode = process.poll()
+def run_backend_cmd(cmd, *, input=None, env=None):
+    result = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=True,
+        input=to_bytes(input, errors="surrogate_or_strict") if input else None,
+        env=env,
+    )
+    b_out, b_err = result.stdout, result.stderr
+    retcode = result.returncode
     if retcode == 0 and (
         b"encryption failed: Unusable public key" in b_out or b"encryption failed: Unusable public key" in b_err
     ):
         retcode = 78  # os.EX_CONFIG
     if retcode != 0:
-        cmd = kwargs.get("args")
-        if cmd is None:
-            cmd = popenargs[0]
         raise subprocess.CalledProcessError(retcode, cmd, to_native(b_out + b_err, errors="surrogate_or_strict"))
     return b_out
 
@@ -304,7 +303,7 @@ class LookupModule(LookupBase):
         if self.realpass is None:
             try:
                 passoutput = to_text(
-                    check_output2([self.pass_cmd, "--version"], env=self.env), errors="surrogate_or_strict"
+                    run_backend_cmd([self.pass_cmd, "--version"], env=self.env), errors="surrogate_or_strict"
                 )
                 self.realpass = "pass: the standard unix password manager" in passoutput
             except subprocess.CalledProcessError as e:
@@ -331,7 +330,7 @@ class LookupModule(LookupBase):
                 raise AnsibleError(e) from e
             # check and convert values
             try:
-                for key in ["create", "returnall", "overwrite", "backup", "nosymbols"]:
+                for key in ["create", "returnall", "keep_trailing_newline", "overwrite", "backup", "nosymbols"]:
                     if not isinstance(self.paramvals[key], bool):
                         self.paramvals[key] = boolean(self.paramvals[key])
             except (ValueError, AssertionError) as e:
@@ -349,7 +348,7 @@ class LookupModule(LookupBase):
 
             # Collect pass environment variables from the plugin's parameters.
             self.env = os.environ.copy()
-            self.env["LANGUAGE"] = "C"  # make sure to get errors in English as required by check_output2
+            self.env["LANGUAGE"] = "C"  # make sure to get errors in English as required by run_backend_cmd
 
             if self.backend == "gopass":
                 self.env["GOPASS_NO_REMINDER"] = "YES"
@@ -370,9 +369,11 @@ class LookupModule(LookupBase):
 
     def check_pass(self):
         try:
-            self.passoutput = to_text(
-                check_output2([self.pass_cmd, "show"] + [self.passname], env=self.env), errors="surrogate_or_strict"
-            ).splitlines()
+            raw_output = to_text(
+                run_backend_cmd([self.pass_cmd, "show"] + [self.passname], env=self.env), errors="surrogate_or_strict"
+            )
+            self.passoutput_had_trailing_newline = raw_output.endswith("\n")
+            self.passoutput = raw_output.splitlines()
             self.password = self.passoutput[0]
             self.passdict = {}
             try:
@@ -456,7 +457,7 @@ class LookupModule(LookupBase):
                     msg += f"lookup_pass: old password was {self.password} (Updated on {datetime})\n"
 
         try:
-            check_output2([self.pass_cmd, "insert", "-f", "-m", self.passname], input=msg, env=self.env)
+            run_backend_cmd([self.pass_cmd, "insert", "-f", "-m", self.passname], input=msg, env=self.env)
         except subprocess.CalledProcessError as e:
             raise AnsibleError(f"exit code {e.returncode} while running {e.cmd}. Error output: {e.output}") from e
         return newpass
@@ -477,7 +478,7 @@ class LookupModule(LookupBase):
             msg += f"\nlookup_pass: First generated by ansible on {datetime}\n"
 
         try:
-            check_output2([self.pass_cmd, "insert", "-f", "-m", self.passname], input=msg, env=self.env)
+            run_backend_cmd([self.pass_cmd, "insert", "-f", "-m", self.passname], input=msg, env=self.env)
         except subprocess.CalledProcessError as e:
             raise AnsibleError(f"exit code {e.returncode} while running {e.cmd}. Error output: {e.output}") from e
 
@@ -485,7 +486,10 @@ class LookupModule(LookupBase):
 
     def get_passresult(self):
         if self.paramvals["returnall"]:
-            return os.linesep.join(self.passoutput)
+            result = os.linesep.join(self.passoutput)
+            if self.paramvals["keep_trailing_newline"] and self.passoutput_had_trailing_newline:
+                result += os.linesep
+            return result
         if self.paramvals["subkey"] == "password":
             return self.password
         else:
@@ -543,6 +547,7 @@ class LookupModule(LookupBase):
             "directory": directory,
             "create": self.get_option("create"),
             "returnall": self.get_option("returnall"),
+            "keep_trailing_newline": self.get_option("keep_trailing_newline"),
             "overwrite": self.get_option("overwrite"),
             "nosymbols": self.get_option("nosymbols"),
             "userpass": self.get_option("userpass") or "",
@@ -557,6 +562,7 @@ class LookupModule(LookupBase):
 
     def run(self, terms, variables, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
+        check_for_wrong_terms(self, direct=kwargs)
         self.setup(variables)
         result = []
 

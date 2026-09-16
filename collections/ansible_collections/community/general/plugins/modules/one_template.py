@@ -61,8 +61,8 @@ options:
     version_added: 10.3.0
 
 extends_documentation_fragment:
-  - community.general.opennebula
-  - community.general.attributes
+  - community.general._opennebula
+  - community.general._attributes
 
 author:
   - "Jyrki Gadinger (@nilsding)"
@@ -155,7 +155,7 @@ owner_name:
 """
 
 
-from ansible_collections.community.general.plugins.module_utils.opennebula import OpenNebulaModule
+from ansible_collections.community.general.plugins.module_utils._opennebula import OpenNebulaModule
 
 
 class TemplateModule(OpenNebulaModule):
@@ -226,10 +226,10 @@ class TemplateModule(OpenNebulaModule):
         return None
 
     def get_template_by_id(self, template_id, filter):
-        return self.get_template(lambda template: (template_id == template.ID), filter)
+        return self.get_template(lambda template: template_id == template.ID, filter)
 
     def get_template_by_name(self, name, filter):
-        return self.get_template(lambda template: (name == template.NAME), filter)
+        return self.get_template(lambda template: name == template.NAME, filter)
 
     def get_template_instance(self, requested_id, requested_name, filter):
         if requested_id:

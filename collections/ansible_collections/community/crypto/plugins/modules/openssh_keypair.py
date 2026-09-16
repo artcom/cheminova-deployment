@@ -15,6 +15,7 @@ description:
 requirements:
   - ssh-keygen (if O(backend=openssh))
   - cryptography >= 3.3 (if O(backend=cryptography))
+  - bcrypt (if O(backend=cryptography) and O(passphrase) is used)
 extends_documentation_fragment:
   - ansible.builtin.files
   - community.crypto._attributes
@@ -72,6 +73,7 @@ options:
       - Passphrase used to decrypt an existing private key or encrypt a newly generated private key.
       - Passphrases are not supported for O(type=rsa1).
       - Can only be used when O(backend=cryptography), or when O(backend=auto) and a required C(cryptography) version is installed.
+        Note that depending on the cryptography version, the C(bcrypt) package is also needed.
     type: str
     version_added: 1.7.0
   private_key_format:
@@ -107,8 +109,7 @@ options:
       - Allows to configure in which situations the module is allowed to regenerate private keys. The module will always generate
         a new key if the destination file does not exist.
       - By default, the key will be regenerated when it does not match the module's options, except when the key cannot be
-        read or the passphrase does not match. Please note that this B(changed) for Ansible 2.10. For Ansible 2.9, the behavior
-        was as if V(full_idempotence) is specified.
+        read or the passphrase does not match.
       - If set to V(never), the module will fail if the key cannot be read or the passphrase is not matching, and will never
         regenerate an existing key.
       - If set to V(fail), the module will fail if the key does not correspond to the module's options.

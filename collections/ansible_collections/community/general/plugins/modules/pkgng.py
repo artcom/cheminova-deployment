@@ -17,7 +17,7 @@ short_description: Package manager for FreeBSD >= 9.0
 description:
   - Manage binary packages for FreeBSD using C(pkgng) which is available in versions after 9.0.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -156,7 +156,7 @@ def query_update(module, run_pkgng, name):
 
 
 def pkgng_older_than(module, pkgng_path, compare_version):
-    rc, out, err = module.run_command([pkgng_path, "-v"])
+    rc, out, err = module.run_command([pkgng_path, "-v"], environ_update={"LANGUAGE": "C", "LC_ALL": "C"})
     version = [int(x) for x in re.split(r"[\._]", out)]
 
     i = 0
@@ -249,7 +249,7 @@ def install_packages(module, run_pkgng, packages, cached, state):
             action_count[action] += len(package_list)
             continue
 
-        pkgng_args = [action, "-U", "-y"] + package_list
+        pkgng_args = [action] + (["-U"] if cached else []) + ["-y"] + package_list
         rc, out, err = run_pkgng(*pkgng_args)
         stdout += out
         stderr += err
@@ -455,7 +455,7 @@ def main():
         ):
             args = ("-g",) + args
 
-        pkgng_env = {"BATCH": "yes"}
+        pkgng_env = {"BATCH": "yes", "LANGUAGE": "C", "LC_ALL": "C"}
 
         if p["ignore_osver"]:
             pkgng_env["IGNORE_OSVERSION"] = "yes"

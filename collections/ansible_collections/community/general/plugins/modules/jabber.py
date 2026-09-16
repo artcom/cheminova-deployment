@@ -12,7 +12,7 @@ short_description: Send a message to jabber user or chat room
 description:
   - Send a message to jabber.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -143,7 +143,6 @@ def main():
 
         if nick:  # sending to room instead of user, need to join
             msg.setType("groupchat")
-            msg.setTag("x", namespace="http://jabber.org/protocol/muc#user")
             join = xmpp.Presence(to=module.params["to"])
             join.setTag("x", namespace="http://jabber.org/protocol/muc")
             conn.send(join)

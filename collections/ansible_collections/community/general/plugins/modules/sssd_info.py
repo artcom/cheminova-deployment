@@ -15,11 +15,6 @@ author: "Aleksandr Gabidullin (@a-gabidullin)"
 requirements:
   - dbus
   - SSSD needs to be running
-attributes:
-  check_mode:
-    support: full
-  diff_mode:
-    support: none
 options:
   action:
     description:
@@ -45,7 +40,8 @@ options:
     type: str
     choices: ['IPA', 'AD']
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
+  - community.general._attributes.info_module
 """
 
 EXAMPLES = r"""
@@ -105,7 +101,7 @@ import typing as t
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils import deps
+from ansible_collections.community.general.plugins.module_utils import _deps as deps
 
 with deps.declare("dbus"):
     import dbus

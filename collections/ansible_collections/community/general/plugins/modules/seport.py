@@ -12,7 +12,7 @@ short_description: Manages SELinux network port type definitions
 description:
   - Manages SELinux network port type definitions.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -29,9 +29,10 @@ options:
   proto:
     description:
       - Protocol for the specified port.
+      - Support for V(dccp) and V(sctp) has been added in community.general 12.4.0.
     type: str
     required: true
-    choices: [tcp, udp]
+    choices: [tcp, udp, dccp, sctp]
   setype:
     description:
       - SELinux type for the specified port.
@@ -145,7 +146,7 @@ def semanage_port_get_ports(seport, setype, proto, local):
     :param setype: SELinux type.
 
     :type proto: str
-    :param proto: Protocol ('tcp' or 'udp')
+    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
 
     :rtype: list
     :return: List of ports that have the specified SELinux type.
@@ -157,6 +158,24 @@ def semanage_port_get_ports(seport, setype, proto, local):
         return []
 
 
+def _parse_port_range(port):
+    """Return (low, high) integers for a port or port range string."""
+    parts = str(port).split("-", 1)
+    low = int(parts[0])
+    high = int(parts[1]) if len(parts) == 2 else low
+    return low, high
+
+
+def _port_is_covered(port, existing_ports):
+    """Return True if port (or range) is fully covered by an existing port entry."""
+    req_low, req_high = _parse_port_range(port)
+    for entry in existing_ports:
+        entry_low, entry_high = _parse_port_range(entry)
+        if entry_low <= req_low and req_high <= entry_high:
+            return True
+    return False
+
+
 def semanage_port_get_type(seport, port, proto):
     """Get the SELinux type of the specified port.
 
@@ -166,7 +185,7 @@ def semanage_port_get_type(seport, port, proto):
     :param port: Port or port range (example: "8080", "8080-9090")
 
     :type proto: str
-    :param proto: Protocol ('tcp' or 'udp')
+    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
 
     :rtype: tuple
     :return: Tuple containing the SELinux type and MLS/MCS level, or None if not found.
@@ -194,7 +213,7 @@ def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", ses
     :param ports: List of ports and port ranges to add (e.g. ["8080", "8080-9090"])
 
     :type proto: str
-    :param proto: Protocol ('tcp' or 'udp')
+    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
 
     :type setype: str
     :param setype: SELinux type
@@ -217,7 +236,7 @@ def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", ses
         seport.set_reload(do_reload)
         ports_by_type = semanage_port_get_ports(seport, setype, proto, local)
         for port in ports:
-            if port in ports_by_type:
+            if _port_is_covered(port, ports_by_type):
                 continue
 
             change = True
@@ -229,6 +248,11 @@ def semanage_port_add(module, ports, proto, setype, do_reload, serange="s0", ses
             else:
                 seport.modify(port, proto, serange, setype)
 
+    except FileNotFoundError as e:
+        module.fail_json(
+            msg=f"Failed to modify SELinux port policy, possibly due to a port overlap with an existing range: {e}\n",
+            exception=traceback.format_exc(),
+        )
     except (ValueError, OSError, KeyError, RuntimeError) as e:
         module.fail_json(msg=f"{e.__class__.__name__}: {e}\n", exception=traceback.format_exc())
 
@@ -245,7 +269,7 @@ def semanage_port_del(module, ports, proto, setype, do_reload, sestore="", local
     :param ports: List of ports and port ranges to delete (e.g. ["8080", "8080-9090"])
 
     :type proto: str
-    :param proto: Protocol ('tcp' or 'udp')
+    :param proto: Protocol ('tcp', 'udp', 'dccp', 'sctp')
 
     :type setype: str
     :param setype: SELinux type.
@@ -270,6 +294,11 @@ def semanage_port_del(module, ports, proto, setype, do_reload, sestore="", local
                 if not module.check_mode:
                     seport.delete(port, proto)
 
+    except FileNotFoundError as e:
+        module.fail_json(
+            msg=f"Failed to modify SELinux port policy, possibly due to a port overlap with an existing range: {e}\n",
+            exception=traceback.format_exc(),
+        )
     except (ValueError, OSError, KeyError, RuntimeError) as e:
         module.fail_json(msg=f"{e.__class__.__name__}: {e}\n", exception=traceback.format_exc())
 
@@ -281,7 +310,7 @@ def main():
         argument_spec=dict(
             ignore_selinux_state=dict(type="bool", default=False),
             ports=dict(type="list", elements="str", required=True),
-            proto=dict(type="str", required=True, choices=["tcp", "udp"]),
+            proto=dict(type="str", required=True, choices=["tcp", "udp", "dccp", "sctp"]),
             setype=dict(type="str", required=True),
             state=dict(type="str", default="present", choices=["absent", "present"]),
             reload=dict(type="bool", default=True),

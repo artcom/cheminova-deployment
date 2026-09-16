@@ -12,7 +12,7 @@ version_added: 10.0.0
 description:
   - Manage Kerberos tickets with C(kinit), C(klist) and C(kdestroy) base utilities.
   - See U(https://web.mit.edu/kerberos/krb5-1.12/doc/user/user_commands/index.html) for reference.
-author: "Alexander Bakanovskii (@abakanovskii)"
+author: "Alexander Bakanovskii (@bakanovskii)"
 attributes:
   check_mode:
     support: full
@@ -126,7 +126,7 @@ options:
 requirements:
   - krb5-user and krb5-config packages
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 """
 
 EXAMPLES = r"""
@@ -185,7 +185,7 @@ EXAMPLES = r"""
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 
-from ansible_collections.community.general.plugins.module_utils.cmd_runner import CmdRunner, cmd_runner_fmt
+from ansible_collections.community.general.plugins.module_utils._cmd_runner import CmdRunner, cmd_runner_fmt
 
 
 class IPAKeytab:

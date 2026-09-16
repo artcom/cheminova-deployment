@@ -617,7 +617,158 @@ ipv4.may-fail:                          yes
 ipv6.method:                            auto
 ipv6.ignore-auto-dns:                   no
 ipv6.ignore-auto-routes:                no
+802-3-ethernet.mtu:                     auto
 bond.options:                           mode=active-backup,primary=non_existent_primary,xmit_hash_policy=layer3+4
+"""
+
+TESTCASE_BOND_MODE_UNSET_PRESERVE = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "dns4_search": ["example1.com", "example2.com"],
+        "state": "present",
+        "bond_mode_behavior": "preserve",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_MODE_UNSET_RESET = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "dns4_search": ["example1.com", "example2.com"],
+        "state": "present",
+        "bond_mode_behavior": "reset",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_MODE_UNSET_OUTPUT = """\
+connection.id:                          non_existent_nw_device
+connection.interface-name:              bond_non_existant
+connection.autoconnect:                 yes
+ipv4.method:                            manual
+ipv4.dns-search:                        example1.com,example2.com
+ipv4.ignore-auto-dns:                   no
+ipv4.ignore-auto-routes:                no
+ipv4.never-default:                     no
+ipv4.may-fail:                          yes
+ipv6.method:                            auto
+ipv6.ignore-auto-dns:                   no
+ipv6.ignore-auto-routes:                no
+802-3-ethernet.mtu:                     auto
+bond.options:                           mode=802.3ad
+"""
+
+TESTCASE_BOND_MODE_EXPLICIT = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "mode": "active-backup",
+        "state": "present",
+        "bond_mode_behavior": "preserve",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_ARP = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "mode": "active-backup",
+        "arp_interval": 100,
+        "arp_ip_target": "192.168.1.1",
+        "state": "present",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_ARP_SHOW_OUTPUT = """\
+connection.id:                          non_existent_nw_device
+connection.interface-name:              bond_non_existant
+connection.autoconnect:                 yes
+ipv4.method:                            auto
+ipv4.ignore-auto-dns:                   no
+ipv4.ignore-auto-routes:                no
+ipv4.never-default:                     no
+ipv4.may-fail:                          yes
+ipv6.method:                            auto
+ipv6.ignore-auto-dns:                   no
+ipv6.ignore-auto-routes:                no
+802-3-ethernet.mtu:                     auto
+bond.options:                           mode=active-backup,arp_interval=100,arp_ip_target=192.168.1.1
+"""
+
+TESTCASE_BOND_ARP_MODIFY = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "mode": "active-backup",
+        "arp_interval": 200,
+        "arp_ip_target": "192.168.1.1",
+        "state": "present",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_ARP_TARGET_MODIFY = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "mode": "active-backup",
+        "arp_interval": 100,
+        "arp_ip_target": "192.168.1.2",
+        "state": "present",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_ARP_CHECK_MODE = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "mode": "active-backup",
+        "arp_interval": 100,
+        "arp_ip_target": "192.168.1.1",
+        "state": "present",
+        "_ansible_check_mode": True,
+    }
+]
+
+TESTCASE_BOND_ARP_ZERO = [
+    {
+        "type": "bond",
+        "conn_name": "non_existent_nw_device",
+        "ifname": "bond_non_existant",
+        "mode": "active-backup",
+        "arp_interval": 0,
+        "arp_ip_target": "192.168.1.1",
+        "state": "present",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_BOND_ARP_ZERO_SHOW_OUTPUT = """\
+connection.id:                          non_existent_nw_device
+connection.interface-name:              bond_non_existant
+connection.autoconnect:                 yes
+ipv4.method:                            auto
+ipv4.ignore-auto-dns:                   no
+ipv4.ignore-auto-routes:                no
+ipv4.never-default:                     no
+ipv4.may-fail:                          yes
+ipv6.method:                            auto
+ipv6.ignore-auto-dns:                   no
+ipv6.ignore-auto-routes:                no
+802-3-ethernet.mtu:                     auto
+bond.options:                           mode=active-backup,arp_interval=0,arp_ip_target=192.168.1.1
 """
 
 TESTCASE_BRIDGE = [
@@ -1652,6 +1803,9 @@ def mocker_set(
     """
     Common mocker object
     """
+    mocker.patch(
+        "ansible_collections.community.general.plugins.modules.nmcli.get_best_parsable_locale", return_value="C"
+    )
     get_bin_path = mocker.patch("ansible.module_utils.basic.AnsibleModule.get_bin_path")
     get_bin_path.return_value = "/usr/bin/nmcli"
     connection = mocker.patch.object(nmcli.Nmcli, "connection_exists")
@@ -1714,6 +1868,34 @@ def mocked_generic_connection_zone_unchanged(mocker):
 @pytest.fixture
 def mocked_bond_connection_unchanged(mocker):
     mocker_set(mocker, connection_exists=True, execute_return=(0, TESTCASE_BOND_SHOW_OUTPUT, ""))
+
+
+@pytest.fixture
+def mocked_bond_mode_unset_connection_unchanged(mocker):
+    mocker_set(mocker, connection_exists=True, execute_return=(0, TESTCASE_BOND_MODE_UNSET_OUTPUT, ""))
+
+
+@pytest.fixture
+def mocked_bond_arp_connection_unchanged(mocker):
+    mocker_set(mocker, connection_exists=True, execute_return=(0, TESTCASE_BOND_ARP_SHOW_OUTPUT, ""))
+
+
+@pytest.fixture
+def mocked_bond_arp_zero_connection_unchanged(mocker):
+    mocker_set(mocker, connection_exists=True, execute_return=(0, TESTCASE_BOND_ARP_ZERO_SHOW_OUTPUT, ""))
+
+
+@pytest.fixture
+def mocked_bond_arp_connection_modify(mocker):
+    mocker_set(
+        mocker,
+        connection_exists=True,
+        execute_return=None,
+        execute_side_effect=(
+            (0, TESTCASE_BOND_ARP_SHOW_OUTPUT, ""),
+            (0, "", ""),
+        ),
+    )
 
 
 @pytest.fixture
@@ -2139,7 +2321,6 @@ def test_bond_connection_create(mocked_generic_connection_create, capfd):
     assert results["changed"]
 
 
-@pytest.mark.skip(reason="Currently broken")  # TODO: fix me!
 @pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND, indirect=["patch_ansible_module"])
 def test_bond_connection_unchanged(mocked_bond_connection_unchanged, capfd):
     """
@@ -2152,6 +2333,192 @@ def test_bond_connection_unchanged(mocked_bond_connection_unchanged, capfd):
     results = json.loads(out)
     assert not results.get("failed")
     assert not results["changed"]
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_MODE_UNSET_PRESERVE, indirect=["patch_ansible_module"])
+def test_bond_mode_omitted_preserves_existing_connection(mocked_bond_mode_unset_connection_unchanged):
+    """
+    Regression test for unspecified bond mode on existing connections.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    changed, diff = nmcli_module.is_connection_changed()
+    assert not changed
+    assert "mode" not in diff["before"]
+    assert "mode" not in diff["after"]
+    assert diff["before"]["ipv4.dns-search"] == ["example1.com", "example2.com"]
+    assert diff["after"]["ipv4.dns-search"] == ["example1.com", "example2.com"]
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_MODE_UNSET_RESET, indirect=["patch_ansible_module"])
+def test_bond_mode_omitted_uses_legacy_reset_behavior(mocked_bond_mode_unset_connection_unchanged):
+    """
+    Regression test for the legacy reset behavior when bond mode is omitted.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    options = nmcli_module.connection_options()
+    assert options["mode"] == "balance-rr"
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_MODE_EXPLICIT, indirect=["patch_ansible_module"])
+def test_bond_mode_explicit_value_takes_precedence_over_behavior(mocked_bond_mode_unset_connection_unchanged):
+    """
+    An explicitly provided mode should take precedence over the behavior setting.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    options = nmcli_module.connection_options()
+    assert options["mode"] == "active-backup"
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP, indirect=["patch_ansible_module"])
+def test_bond_arp_connection_unchanged(mocked_bond_arp_connection_unchanged):
+    """
+    Regression test for #11588:
+    Bond ARP options must not be reported as changed when already configured.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    changed, diff = nmcli_module.is_connection_changed()
+
+    mismatches = {
+        key: (diff["before"][key], diff["after"][key])
+        for key in diff["before"]
+        if diff["before"][key] != diff["after"][key]
+    }
+    assert not changed, f"unexpected changes: {mismatches}"
+    assert diff["before"]["arp_interval"] == "100"
+    assert diff["after"]["arp_interval"] == "100"
+    assert diff["before"]["arp_ip_target"] == "192.168.1.1"
+    assert diff["after"]["arp_ip_target"] == "192.168.1.1"
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP, indirect=["patch_ansible_module"])
+def test_bond_arp_connection_unchanged_main(mocked_bond_arp_connection_unchanged, capfd):
+    """
+    Regression test for #11588 via main():
+    Second run of a bond with ARP options must report changed=false.
+    """
+    with pytest.raises(SystemExit):
+        nmcli.main()
+
+    out, err = capfd.readouterr()
+    results = json.loads(out)
+    assert not results.get("failed")
+    assert not results["changed"]
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP_ZERO, indirect=["patch_ansible_module"])
+def test_bond_arp_interval_zero_unchanged(mocked_bond_arp_zero_connection_unchanged):
+    """
+    arp_interval=0 is a valid value and must not be treated as unset.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    changed, diff = nmcli_module.is_connection_changed()
+
+    assert not changed
+    assert diff["before"]["arp_interval"] == "0"
+    assert diff["after"]["arp_interval"] == "0"
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP_MODIFY, indirect=["patch_ansible_module"])
+def test_bond_arp_connection_changed(mocked_bond_arp_connection_unchanged):
+    """
+    When ARP interval differs from the existing connection, a change must be reported.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    changed, diff = nmcli_module.is_connection_changed()
+
+    assert changed
+    assert diff["before"]["arp_interval"] == "100"
+    assert diff["after"]["arp_interval"] == "200"
+    assert diff["before"]["arp_ip_target"] == diff["after"]["arp_ip_target"] == "192.168.1.1"
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP_TARGET_MODIFY, indirect=["patch_ansible_module"])
+def test_bond_arp_ip_target_changed(mocked_bond_arp_connection_unchanged):
+    """
+    When only arp_ip_target differs from the existing connection, a change must be reported.
+    """
+    module = nmcli.create_module()
+    nmcli_module = nmcli.Nmcli(module)
+
+    changed, diff = nmcli_module.is_connection_changed()
+
+    assert changed
+    assert diff["before"]["arp_interval"] == diff["after"]["arp_interval"] == "100"
+    assert diff["before"]["arp_ip_target"] == "192.168.1.1"
+    assert diff["after"]["arp_ip_target"] == "192.168.1.2"
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP_CHECK_MODE, indirect=["patch_ansible_module"])
+def test_bond_arp_connection_unchanged_check_mode(mocked_bond_arp_connection_unchanged, capfd):
+    """
+    Check mode must not report changed when bond ARP options already match.
+    """
+    with pytest.raises(SystemExit):
+        nmcli.main()
+
+    assert nmcli.Nmcli.execute_command.call_count == 1
+    out, err = capfd.readouterr()
+    results = json.loads(out)
+    assert not results.get("failed")
+    assert not results["changed"]
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP_MODIFY, indirect=["patch_ansible_module"])
+def test_bond_arp_connection_modify(mocked_bond_arp_connection_modify, capfd):
+    """
+    Test : Bond connection modify uses bond.options syntax for ARP options
+    """
+    with pytest.raises(SystemExit):
+        nmcli.main()
+
+    assert nmcli.Nmcli.execute_command.call_count == 2
+    arg_list = nmcli.Nmcli.execute_command.call_args_list
+    modify_args, modify_kw = arg_list[1]
+
+    modify_args_text = [to_text(x) for x in modify_args[0]]
+    assert modify_args[0][2] == "modify"
+    assert "+bond.options" in modify_args_text
+    assert "arp_interval=200" in modify_args_text
+
+    out, err = capfd.readouterr()
+    results = json.loads(out)
+    assert not results.get("failed")
+    assert results["changed"]
+
+
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_BOND_ARP, indirect=["patch_ansible_module"])
+def test_bond_arp_connection_create(mocked_generic_connection_create, capfd):
+    """
+    Test : Bond connection with ARP options created via bond.options syntax
+    """
+    with pytest.raises(SystemExit):
+        nmcli.main()
+
+    assert nmcli.Nmcli.execute_command.call_count == 1
+    arg_list = nmcli.Nmcli.execute_command.call_args_list
+    args, kwargs = arg_list[0]
+
+    args_text = [to_text(x) for x in args[0]]
+    assert "+bond.options" in args_text
+    assert "arp_interval=100" in args_text
+    assert "arp_ip_target=192.168.1.1" in args_text
+
+    out, err = capfd.readouterr()
+    results = json.loads(out)
+    assert not results.get("failed")
+    assert results["changed"]
 
 
 @pytest.mark.parametrize("patch_ansible_module", TESTCASE_GENERIC, indirect=["patch_ansible_module"])
@@ -2260,6 +2627,8 @@ def test_generic_connection_modify_routing_rules6(mocked_generic_connection_crea
     args, kwargs = arg_list[0]
 
     assert "ipv6.routing-rules" in args[0]
+    idx = args[0].index("ipv6.routing-rules")
+    assert args[0][idx + 1] == "priority 5 from fd00::/24 table 5000,priority 10 from fd01::/24 table 5001"
 
     out, err = capfd.readouterr()
     results = json.loads(out)
@@ -2505,7 +2874,7 @@ def test_create_bridge(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "ipv4.addresses",
         "10.10.10.10/24",
@@ -2542,7 +2911,7 @@ def test_mod_bridge(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "ipv4.addresses",
         "10.10.10.10/24",
@@ -2596,7 +2965,7 @@ def test_create_bridge_slave(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["bridge-port.path-cost", "100"]:
         assert param in args_text
 
@@ -2624,7 +2993,7 @@ def test_mod_bridge_slave(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["bridge-port.path-cost", "100"]:
         assert param in args_text
 
@@ -2843,7 +3212,7 @@ def test_create_vlan_con(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ipv4.addresses", "10.10.10.10/24", "ipv4.gateway", "10.10.10.1", "vlan.id", "10"]:
         assert param in args_text
 
@@ -2871,7 +3240,7 @@ def test_mod_vlan_conn(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ipv4.addresses", "10.10.10.10/24", "ipv4.gateway", "10.10.10.1", "vlan.id", "10"]:
         assert param in args_text
 
@@ -2915,7 +3284,7 @@ def test_create_vxlan(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "connection.interface-name",
         "vxlan-existent_nw_device",
@@ -2951,7 +3320,7 @@ def test_vxlan_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["vxlan.local", "192.168.225.5", "vxlan.remote", "192.168.225.6", "vxlan.id", "11"]:
         assert param in args_text
 
@@ -2995,7 +3364,7 @@ def test_create_vxlan_multicast(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "vxlan_multicast_test"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "connection.interface-name",
         "vxlan-device",
@@ -3040,7 +3409,7 @@ def test_create_ipip(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "connection.interface-name",
         "ipip-existent_nw_device",
@@ -3078,7 +3447,7 @@ def test_ipip_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ip-tunnel.local", "192.168.225.5", "ip-tunnel.remote", "192.168.225.6"]:
         assert param in args_text
 
@@ -3122,7 +3491,7 @@ def test_create_sit(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "connection.interface-name",
         "sit-existent_nw_device",
@@ -3160,7 +3529,7 @@ def test_sit_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ip-tunnel.local", "192.168.225.5", "ip-tunnel.remote", "192.168.225.6"]:
         assert param in args_text
 
@@ -3224,7 +3593,7 @@ def test_create_gre(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "connection.interface-name",
         "gre-existent_nw_device",
@@ -3266,7 +3635,7 @@ def test_gre_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ip-tunnel.local", "192.168.225.5", "ip-tunnel.remote", "192.168.225.6"]:
         assert param in args_text
 
@@ -3351,7 +3720,7 @@ def test_create_ethernet_static(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "ethernet_non_existant",
@@ -3410,7 +3779,7 @@ def test_ethernet_connection_static_ipv4_address_static_route_with_metric_modify
     assert add_args[0][2] == "modify"
     assert add_args[0][3] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in ["ipv4.routes", "192.168.200.0/24 192.168.1.1", "ipv4.route-metric", "10"]:
         assert param in add_args_text
@@ -3444,7 +3813,7 @@ def test_ethernet_connection_static_ipv4_address_static_route_with_metric_clear(
     assert add_args[0][2] == "modify"
     assert add_args[0][3] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in ["ipv4.routes", ""]:
         assert param in add_args_text
@@ -3483,7 +3852,7 @@ def test_ethernet_connection_static_ipv6_address_static_route_create(
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.interface-name",
@@ -3525,7 +3894,7 @@ def test_ethernet_connection_static_ipv6_address_static_route_metric_modify(
     assert add_args[0][2] == "modify"
     assert add_args[0][3] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in ["ipv6.routes", "fd2e:446f:d85d:5::/64 2001:beef:cafe:10::2", "ipv6.route-metric", "10"]:
         assert param in add_args_text
@@ -3561,7 +3930,7 @@ def test_ethernet_connection_static_ipv6_address_multiple_static_routes_with_met
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.interface-name",
@@ -3603,7 +3972,7 @@ def test_ethernet_connection_sriov_vfs_create(mocked_ethernet_connection_with_sr
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.interface-name",
@@ -3647,7 +4016,7 @@ def test_ethernet_connection_static_ipv6_address_static_route_with_metric_create
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.interface-name",
@@ -3697,7 +4066,7 @@ def test_ethernet_connection_static_ipv6_address_static_route_create_2(
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.interface-name",
@@ -3753,7 +4122,7 @@ def test_create_wireless(mocked_wireless_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "wireless_non_existant",
@@ -3806,7 +4175,7 @@ def test_create_secure_wireless(mocked_secure_wireless_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "wireless_non_existant",
@@ -3867,7 +4236,7 @@ def test_create_secure_wireless_failure(mocked_secure_wireless_create_failure, c
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "wireless_non_existant",
@@ -3921,7 +4290,7 @@ def test_modify_secure_wireless(mocked_secure_wireless_modify, capfd):
     assert add_args[0][2] == "modify"
     assert add_args[0][3] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "wireless_non_existant",
@@ -3986,7 +4355,7 @@ def test_modify_secure_wireless_failure(mocked_secure_wireless_modify_failure, c
     assert add_args[0][2] == "modify"
     assert add_args[0][3] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "wireless_non_existant",
@@ -4026,7 +4395,7 @@ def test_create_dummy_static(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "dummy_non_existant",
@@ -4099,7 +4468,7 @@ def test_dummy_connection_static_with_custom_mtu_modify(mocked_dummy_connection_
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["802-3-ethernet.mtu", "0"]:
         assert param in args_text
 
@@ -4129,7 +4498,7 @@ def test_create_gsm(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in [
         "connection.interface-name",
         "gsm_non_existant",
@@ -4167,7 +4536,7 @@ def test_gsm_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["gsm.username", "t-mobile", "gsm.password", "tm"]:
         assert param in args_text
 
@@ -4214,7 +4583,7 @@ def test_create_ethernet_with_multiple_ip4_addresses_static(mocked_generic_conne
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "ethernet_non_existant",
@@ -4262,7 +4631,7 @@ def test_create_ethernet_with_multiple_ip6_addresses_static(mocked_generic_conne
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "ethernet_non_existant",
@@ -4374,7 +4743,7 @@ def test_create_ethernet_addr_gen_mode_and_ip6_privacy_static(mocked_generic_con
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "ethernet_non_existant",
@@ -4442,7 +4811,7 @@ def test_create_wireguard(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "wg_non_existant",
@@ -4498,7 +4867,7 @@ def test_wireguard_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["wireguard.listen-port", "51820"]:
         assert param in args_text
 
@@ -4557,7 +4926,7 @@ def test_create_vpn_l2tp(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "vpn_l2tp"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.autoconnect",
@@ -4608,7 +4977,7 @@ def test_create_vpn_pptp(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "vpn_pptp"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in [
         "connection.autoconnect",
@@ -4666,7 +5035,7 @@ def test_infiniband_connection_static_transport_mode_connected(
     assert add_args[0][2] == "modify"
     assert add_args[0][3] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
 
     for param in ["infiniband.transport-mode", "connected"]:
         assert param in add_args_text
@@ -4721,7 +5090,7 @@ def test_create_macvlan(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "non_existent_nw_device"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in [
         "connection.interface-name",
         "macvlan_non_existant",
@@ -4777,7 +5146,7 @@ def test_macvlan_mod(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["macvlan.mode", "2"]:
         assert param in args_text
 
@@ -5115,7 +5484,7 @@ def test_create_loopback(mocked_generic_connection_create, capfd):
     assert add_args[0][5] == "con-name"
     assert add_args[0][6] == "lo"
 
-    add_args_text = list(map(to_text, add_args[0]))
+    add_args_text = [to_text(x) for x in add_args[0]]
     for param in ["connection.interface-name", "lo", "ipv4.addresses", "127.0.0.1/8"]:
         assert param in add_args_text
 
@@ -5186,7 +5555,7 @@ def test_create_vrf_con(mocked_generic_connection_create, capfd):
     assert args[0][5] == "con-name"
     assert args[0][6] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ipv4.addresses", "10.10.10.10/24", "ipv4.gateway", "10.10.10.1", "table", "10"]:
         assert param in args_text
 
@@ -5214,7 +5583,7 @@ def test_mod_vrf_conn(mocked_generic_connection_modify, capfd):
     assert args[0][2] == "modify"
     assert args[0][3] == "non_existent_nw_device"
 
-    args_text = list(map(to_text, args[0]))
+    args_text = [to_text(x) for x in args[0]]
     for param in ["ipv4.addresses", "10.10.10.10/24", "ipv4.gateway", "10.10.10.1", "table", "10"]:
         assert param in args_text
 

@@ -59,6 +59,11 @@ options:
         of query results. Leave empty to skip this check.
     type: int
     version_added: 10.4.0
+  sync:
+    description: Set to C(true) to sync items from the Bitwarden vault in the beginning.
+    type: bool
+    default: false
+    version_added: 13.2.0
 """
 
 EXAMPLES = r"""
@@ -125,6 +130,8 @@ from ansible.module_utils.common.text.converters import to_bytes, to_text
 from ansible.parsing.ajson import AnsibleJSONDecoder
 from ansible.plugins.lookup import LookupBase
 
+from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+
 
 class BitwardenException(AnsibleError):
     pass
@@ -152,6 +159,10 @@ class Bitwarden:
         out, err = self._run(["status"], stdin="")
         decoded = AnsibleJSONDecoder().raw_decode(out)[0]
         return decoded["status"] == "unlocked"
+
+    def sync(self):
+        out, err = self._run(["sync"], stdin="")
+        return out
 
     def _run(self, args, stdin=None, expected_rc=0):
         if self.session:
@@ -254,6 +265,7 @@ class Bitwarden:
 class LookupModule(LookupBase):
     def run(self, terms=None, variables=None, **kwargs):
         self.set_options(var_options=variables, direct=kwargs)
+        check_for_wrong_terms(self, direct=kwargs)
         field = self.get_option("field")
         search_field = self.get_option("search")
         collection_id = self.get_option("collection_id")
@@ -261,9 +273,13 @@ class LookupModule(LookupBase):
         organization_id = self.get_option("organization_id")
         result_count = self.get_option("result_count")
         _bitwarden.session = self.get_option("bw_session")
+        sync = self.get_option("sync")
 
         if not _bitwarden.unlocked:
             raise AnsibleError("Bitwarden Vault locked. Run 'bw unlock'.")
+
+        if sync:
+            _bitwarden.sync()
 
         if not terms:
             terms = [None]

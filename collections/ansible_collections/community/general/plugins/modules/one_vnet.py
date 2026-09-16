@@ -11,7 +11,7 @@ DOCUMENTATION = r"""
 module: one_vnet
 short_description: Manages OpenNebula virtual networks
 version_added: 9.4.0
-author: "Alexander Bakanovskii (@abakanovskii)"
+author: "Alexander Bakanovskii (@bakanovskii)"
 requirements:
   - pyone
 description:
@@ -48,8 +48,8 @@ options:
     type: str
 
 extends_documentation_fragment:
-  - community.general.opennebula
-  - community.general.attributes
+  - community.general._opennebula
+  - community.general._attributes
 """
 
 EXAMPLES = r"""
@@ -254,7 +254,7 @@ ar_pool:
 """
 
 
-from ansible_collections.community.general.plugins.module_utils.opennebula import OpenNebulaModule
+from ansible_collections.community.general.plugins.module_utils._opennebula import OpenNebulaModule
 
 
 class NetworksModule(OpenNebulaModule):
@@ -320,10 +320,10 @@ class NetworksModule(OpenNebulaModule):
         return None
 
     def get_template_by_id(self, template_id):
-        return self.get_template(lambda template: (template_id == template.ID))
+        return self.get_template(lambda template: template_id == template.ID)
 
     def get_template_by_name(self, name):
-        return self.get_template(lambda template: (name == template.NAME))
+        return self.get_template(lambda template: name == template.NAME)
 
     def get_template_instance(self, requested_id, requested_name):
         if requested_id:

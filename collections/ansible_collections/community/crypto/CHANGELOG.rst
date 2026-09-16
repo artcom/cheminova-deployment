@@ -4,6 +4,125 @@ Community Crypto Release Notes
 
 .. contents:: Topics
 
+v3.4.0
+======
+
+Release Summary
+---------------
+
+Feature release with new PKCS#12 modules and some deprecations.
+
+Deprecated Features
+-------------------
+
+- get_certificate - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_csr - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_csr_info - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_csr_pipe - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_pkcs12 - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_privatekey - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_privatekey_info - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_privatekey_pipe - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_publickey - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_publickey_info - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_signature - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- openssl_signature_info - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- x509_certificate - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- x509_certificate_info - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+- x509_certificate_pipe - the ``select_crypto_backend`` option is deprecated and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+
+New Modules
+-----------
+
+- community.crypto.openssl_pkcs12_extract - Extract certificate and private key from PKCS#12 archive.
+- community.crypto.openssl_pkcs12_info - Return certificates and (optionally) private key of a PKCS#12 file.
+
+v3.3.0
+======
+
+Release Summary
+---------------
+
+Feature release.
+
+Minor Changes
+-------------
+
+- Update vendored list of OID names from OpenSSL (https://github.com/ansible-collections/community.crypto/pull/1057).
+- openssl_privatekey\*, openssl_publickey\*, openssl_csr\*, x509_certificate\* - support ML-DSA-{44,65,87} private keys (https://github.com/ansible-collections/community.crypto/issues/1056, https://github.com/ansible-collections/community.crypto/pull/1058).
+
+v3.2.2
+======
+
+Release Summary
+---------------
+
+Bugfix release.
+
+Bugfixes
+--------
+
+- gpg_fingerprint lookup plugin, gpg_fingerprint filter plugin - prevent GnuPG from unnecessarily starting gpg-agent (https://github.com/ansible-collections/community.crypto/issues/1026, https://github.com/ansible-collections/community.crypto/pull/1029).
+- openssh_* modules - prevent use of currently unsupported MLDSA private keys in the cryptography backend (https://github.com/ansible-collections/community.crypto/pull/1044).
+- openssl_pkcs12 - prevent use of MLDSA private keys, which are not supported by PKCS#12, or at least cryptography's implementation (https://github.com/ansible-collections/community.crypto/pull/1044).
+
+v3.2.1
+======
+
+Release Summary
+---------------
+
+Bugfix release.
+
+Bugfixes
+--------
+
+- acme_* modules - adjust OpenSSL RSA private key output parsing to OpenSSL 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1005).
+- acme_challenge_cert_helper - adjust private key check for new private key types in cryptography 47.0.0 (https://github.com/ansible-collections/community.crypto/pull/1007).
+
+v3.2.0
+======
+
+Release Summary
+---------------
+
+Bugfix and feature release.
+
+This release is dedicated to the memory of `Michael O. Rabin <https://en.wikipedia.org/wiki/Michael_O._Rabin>`__, who passed away a few days before this release.
+
+Minor Changes
+-------------
+
+- acme_* modules - experimentally support ``dns-account-01`` challenge type according to `acme-dns-account-label draft 02 <https://datatracker.ietf.org/doc/html/draft-ietf-acme-dns-account-label-02>`__. Note that breaking changes to this challenge type can also happen in minor releases until the acme-dns-account-label draft has been finalized as an RFC (https://github.com/ansible-collections/community.crypto/pull/996).
+- acme_* modules - experimentally support ``dns-persist-01`` challenge type according to `acme-dns-persist draft 01 <https://www.ietf.org/archive/id/draft-ietf-acme-dns-persist-01.html>`__. Note that breaking changes to this challenge type can also happen in minor releases until the acme-dns-persist draft has been finalized as an RFC (https://github.com/ansible-collections/community.crypto/pull/997).
+
+Bugfixes
+--------
+
+- acme_* modules - improve handling of authz deactivation, and improve error message in case of bad authz states (https://github.com/ansible-collections/community.crypto/pull/998).
+
+New Plugins
+-----------
+
+Filter
+~~~~~~
+
+- community.crypto.acme_dns_persist_record - Craft a DNS record for ACME :literal:`dns\-persist\-01` challenges.
+- community.crypto.acme_dns_persist_record_parse - Parse a DNS record for ACME :literal:`dns\-persist\-01` challenges.
+
+v3.1.1
+======
+
+Release Summary
+---------------
+
+Bugfix release.
+
+Bugfixes
+--------
+
+- crypto_info, openssl_privatekey, openssl_privatekey_pipe - fix detection of EC support for cryptography 46.0.5+ (https://github.com/ansible-collections/community.crypto/pull/981).
+
 v3.1.0
 ======
 

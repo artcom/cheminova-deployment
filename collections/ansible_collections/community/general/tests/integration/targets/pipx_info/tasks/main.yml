@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 - name: Bail out if Python < 3.8
-  when: ansible_python_version is version('3.8', '<')
+  when: ansible_facts.python_version is version('3.8', '<')
   ansible.builtin.meta: end_play
 - name: Install pipx>=1.7.0
   ansible.builtin.pip:
     name: pipx>=1.7.0
-    extra_args: --user
+    extra_args: "--user -c {{ remote_constraints }}"
 
 ##############################################################################
 - name: Ensure applications are uninstalled

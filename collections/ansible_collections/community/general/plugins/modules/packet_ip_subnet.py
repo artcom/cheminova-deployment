@@ -24,7 +24,7 @@ author:
   - Nurfet Becirevic (@nurfet-becirevic) <nurfet.becirevic@gmail.com>
 
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 
 attributes:
   check_mode:
@@ -91,7 +91,7 @@ EXAMPLES = r"""
   hosts: localhost
   tasks:
 
-    - packet_device:
+    - community.general.packet_device:
         project_id: 89b497ee-5afc-420a-8fb5-56984898f4df
         hostnames: myserver
         operating_system: ubuntu_16_04
@@ -158,7 +158,7 @@ except ImportError:
     HAS_PACKET_SDK = False
 
 
-NAME_RE = r"({0}|{0}{1}*{0})".format(r"[a-zA-Z0-9]", r"[a-zA-Z0-9\-]")
+NAME_RE = r"([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])"
 HOSTNAME_RE = rf"({NAME_RE}\.)*{NAME_RE}$"
 PROJECT_MAX_DEVICES = 100
 

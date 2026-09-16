@@ -15,7 +15,7 @@ description:
 requirements:
   - 'py-consul python library U(https://github.com/criteo/py-consul?tab=readme-ov-file#installation)'
 options:
-  _raw:
+  _terms:
     description: List of key(s) to retrieve.
     type: list
     elements: string
@@ -57,13 +57,24 @@ options:
       - If you use E(ANSIBLE_CONSUL_URL) this value is used from there.
   validate_certs:
     default: true
-    description: Whether to verify the TLS connection or not.
+    description:
+      - Whether to verify the TLS connection or not.
+      - Instead of setting this to V(false), please consider using O(ca_path) instead.
     type: bool
     env:
       - name: ANSIBLE_CONSUL_VALIDATE_CERTS
     ini:
       - section: lookup_consul
         key: validate_certs
+  ca_path:
+    description: The CA bundle to use for HTTPS connections.
+    type: str
+    version_added: "12.6.0"
+    env:
+      - name: ANSIBLE_CONSUL_CA_PATH
+    ini:
+      - section: lookup_consul
+        key: ca_path
   client_cert:
     description: The client cert to verify the TLS connection.
     type: str
@@ -83,6 +94,16 @@ options:
     ini:
       - section: lookup_consul
         key: url
+  empty_value:
+    description:
+      - Controls what is returned when a Consul value is null.
+    type: str
+    default: 'textual_none'
+    choices:
+      textual_none: Return the string V(None). This is the legacy behavior.
+      python_none: Return a Python V(null)/V(None) value.
+      empty_string: Return an empty string.
+    version_added: 13.1.0
 """
 
 EXAMPLES = r"""
@@ -115,12 +136,21 @@ from ansible.errors import AnsibleAssertionError, AnsibleError
 from ansible.module_utils.common.text.converters import to_text
 from ansible.plugins.lookup import LookupBase
 
+from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_wrong_terms
+
 try:
     import consul
 
     HAS_CONSUL = True
 except ImportError:
     HAS_CONSUL = False
+
+
+_EMPTY_VALUE_MAP = {
+    "textual_none": "None",
+    "python_none": None,
+    "empty_string": "",
+}
 
 
 class LookupModule(LookupBase):
@@ -132,6 +162,7 @@ class LookupModule(LookupBase):
 
         # get options
         self.set_options(direct=kwargs)
+        check_for_wrong_terms(self, direct=kwargs)
 
         scheme = self.get_option("scheme")
         host = self.get_option("host")
@@ -146,13 +177,17 @@ class LookupModule(LookupBase):
                 port = u.port
 
         validate_certs = self.get_option("validate_certs")
+        ca_path = self.get_option("ca_path")
         client_cert = self.get_option("client_cert")
 
+        verify = (ca_path or validate_certs) if validate_certs else False
+
+        empty_value = _EMPTY_VALUE_MAP[self.get_option("empty_value")]
         values = []
         try:
             for term in terms:
                 params = self.parse_params(term)
-                consul_api = consul.Consul(host=host, port=port, scheme=scheme, verify=validate_certs, cert=client_cert)
+                consul_api = consul.Consul(host=host, port=port, scheme=scheme, verify=verify, cert=client_cert)
 
                 results = consul_api.kv.get(
                     params["key"],
@@ -165,9 +200,11 @@ class LookupModule(LookupBase):
                     # responds with a single or list of result maps
                     if isinstance(results[1], list):
                         for r in results[1]:
-                            values.append(to_text(r["Value"]))
+                            v = r["Value"]
+                            values.append(to_text(v) if v is not None else empty_value)
                     else:
-                        values.append(to_text(results[1]["Value"]))
+                        v = results[1]["Value"]
+                        values.append(to_text(v) if v is not None else empty_value)
         except Exception as e:
             raise AnsibleError(f"Error locating '{term}' in kv store. Error was {e}") from e
 

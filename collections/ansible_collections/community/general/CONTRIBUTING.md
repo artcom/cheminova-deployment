@@ -8,6 +8,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 We follow [Ansible Code of Conduct](https://docs.ansible.com/projects/ansible/latest/community/code_of_conduct.html) in all our contributions and interactions within this repository.
 
+**Please note that using AI is accepted but you MUST comply with the [Ansible Community Policy for AI-Assisted Contributions](https://docs.ansible.com/projects/ansible/devel/community/ai_policy.html)**!
+
 If you are a committer, also refer to the [collection's committer guidelines](https://github.com/ansible-collections/community.general/blob/main/commit-rights.md).
 
 ## Issue tracker
@@ -56,7 +58,7 @@ The easiest way to format the code, and to run sanity and unit tests locally is 
 
 ### Format code
 
-The following commands show how to run ansible-test sanity tests:
+The following commands show how to run ruff format:
 
 ```.bash
 # Run all configured formatters:
@@ -93,10 +95,10 @@ The following commands show how to run unit tests:
 nox -Re ansible-test-units-devel
 
 # Run all unit tests for one Python version (a lot faster):
-nox -Re ansible-test-units-devel -- --python 3.13
+nox -Re ansible-test-units-devel-3.14
 
 # Run a specific unit test (for the nmcli module) for one Python version:
-nox -Re ansible-test-units-devel -- --python 3.13 tests/unit/plugins/modules/net_tools/test_nmcli.py
+nox -Re ansible-test-units-devel-3.14 -- tests/unit/plugins/modules/net_tools/test_nmcli.py
 ```
 
 If you replace `-Re` with `-e`, then the virtual environments will be re-created. The `-R` re-uses them (if they already exist).
@@ -145,10 +147,10 @@ The following commands show how to run unit tests:
 ansible-test units --docker -v
 
 # Run all unit tests for one Python version (a lot faster):
-ansible-test units --docker -v --python 3.8
+ansible-test units --docker -v --python 3.14
 
 # Run a specific unit test (for the nmcli module) for one Python version:
-ansible-test units --docker -v --python 3.8 tests/unit/plugins/modules/net_tools/test_nmcli.py
+ansible-test units --docker -v --python 3.14 tests/unit/plugins/modules/net_tools/test_nmcli.py
 ```
 
 ### Integration tests
@@ -177,14 +179,14 @@ Integration tests on Docker have the following parameters:
   For plugins, the plugin type is added before the plugin's short name, for example `callback_yaml` for the `community.general.yaml` callback.
 
 ```.bash
-# Test all plugins/modules on fedora40
-ansible-test integration -v --docker fedora40
+# Test all plugins/modules on fedora
+ansible-test integration -v --docker fedora
 
 # Template
 ansible-test integration -v --docker image_name test_name
 
-# Example community.general.ini_file module on fedora40 Docker image:
-ansible-test integration -v --docker fedora40 ini_file
+# Example community.general.ini_file module on fedora Docker image:
+ansible-test integration -v --docker fedora ini_file
 ```
 
 #### Without isolation

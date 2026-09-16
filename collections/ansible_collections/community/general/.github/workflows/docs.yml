@@ -3,7 +3,7 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-name: nox
+name: Check Ansible output in docs
 'on':
   push:
     branches:
@@ -11,24 +11,22 @@ name: nox
       - stable-*
     paths:
       - docs/**
+      - .github/workflows/docs.yml
   pull_request:
     paths:
       - docs/**
+      - .github/workflows/docs.yml
   # Run CI once per day (at 08:00 UTC)
   schedule:
     - cron: '0 8 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   nox:
-    runs-on: ubuntu-latest
-    name: "Validate generated Ansible output"
-    steps:
-      - name: Check out collection
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - name: Run nox
-        uses: ansible-community/antsibull-nox@main
-        with:
-          sessions: ansible-output
+    uses: ansible-community/antsibull-nox/.github/workflows/reusable-nox-run.yml@main
+    with:
+      session-name: Check Ansible output in docs
+      sessions: ansible-output

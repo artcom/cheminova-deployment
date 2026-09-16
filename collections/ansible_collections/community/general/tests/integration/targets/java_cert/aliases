@@ -4,9 +4,6 @@
 
 azp/posix/3
 destructive
-skip/aix
-skip/osx
 skip/macos
 skip/freebsd
 needs/root
-skip/rhel  # FIXME: keytool seems to be broken on newer RHELs

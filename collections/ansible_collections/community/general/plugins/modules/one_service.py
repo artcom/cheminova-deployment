@@ -12,7 +12,7 @@ short_description: Deploy and manage OpenNebula services
 description:
   - Manage OpenNebula services.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -232,10 +232,18 @@ roles:
 
 import os
 import time
-from collections import namedtuple
+from dataclasses import dataclass
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import open_url
+
+
+@dataclass
+class AuthParams:
+    url: str
+    user: str
+    password: str
+
 
 STATES = (
     "PENDING",
@@ -330,11 +338,11 @@ def get_service(module, auth, pred):
 
 
 def get_service_by_id(module, auth, service_id):
-    return get_service(module, auth, lambda service: (int(service["ID"]) == int(service_id))) if service_id else None
+    return get_service(module, auth, lambda service: int(service["ID"]) == int(service_id)) if service_id else None
 
 
 def get_service_by_name(module, auth, service_name):
-    return get_service(module, auth, lambda service: (service["NAME"] == service_name))
+    return get_service(module, auth, lambda service: service["NAME"] == service_name)
 
 
 def get_service_info(module, auth, service):
@@ -681,13 +689,11 @@ def delete_service(module, auth, service_id):
 
 
 def get_template_by_name(module, auth, template_name):
-    return get_template(module, auth, lambda template: (template["NAME"] == template_name))
+    return get_template(module, auth, lambda template: template["NAME"] == template_name)
 
 
 def get_template_by_id(module, auth, template_id):
-    return (
-        get_template(module, auth, lambda template: (int(template["ID"]) == int(template_id))) if template_id else None
-    )
+    return get_template(module, auth, lambda template: int(template["ID"]) == int(template_id)) if template_id else None
 
 
 def get_template_id(module, auth, requested_id, requested_name):
@@ -730,9 +736,7 @@ def get_connection_info(module):
         module.fail_json(
             msg="One or more connection parameters (api_url, api_username, api_password) were not specified"
         )
-    auth_params = namedtuple("auth", ("url", "user", "password"))
-
-    return auth_params(url=url, user=username, password=password)
+    return AuthParams(url=url, user=username, password=password)
 
 
 def main():

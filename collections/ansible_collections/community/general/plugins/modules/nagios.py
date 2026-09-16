@@ -21,13 +21,16 @@ description:
     variable to refer to the host the playbook is currently running on.
   - The module executes commands and needs to be run directly on the Nagios server
     with a user that has appropriate access rights. It does not use Nagios' HTTP API.
+  - The O(host) argument identifies the host that Nagios should act on, not where the module runs.
+    When the managed host is not itself the Nagios server, use C(delegate_to) to run the module
+    on the Nagios server while keeping O(host) pointed at the managed host. See the examples below.
   - Searches for a I(nagios.cfg) in I(/etc/nagios), I(/etc/nagios2), I(/etc/nagios3), I(/usr/local/etc/nagios),
     I(/usr/local/groundwork/nagios/etc), I(/omd/sites/oppy/tmp/nagios), I(/usr/local/nagios/etc),
     I(/usr/local/nagios), I(/opt/nagios/etc), and I(/opt/nagios),
     or a I(icinga.cfg) in I(/etc/icinga) and I(/usr/local/icinga/etc).
     (The Nagios configuration file should be readable by the Ansible user.)
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: none
@@ -119,6 +122,14 @@ EXAMPLES = r"""
     minutes: 30
     service: httpd
     host: '{{ inventory_hostname }}'
+
+- name: Schedule an hour of downtime when the managed host is not the Nagios server
+  community.general.nagios:
+    action: downtime
+    minutes: 60
+    service: all
+    host: '{{ inventory_hostname }}'
+  delegate_to: nagios.example.com
 
 - name: Schedule an hour of HOST downtime
   community.general.nagios:

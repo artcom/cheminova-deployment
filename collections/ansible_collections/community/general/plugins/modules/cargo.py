@@ -14,7 +14,7 @@ description:
   - Manage Rust packages with cargo.
 author: "Radek Sprta (@radek-sprta)"
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -196,7 +196,7 @@ class Cargo:
         cmd = ["search", name, "--limit", "1"]
         data, dummy = self._exec(cmd, True, False, False)
 
-        match = re.search(r'"(.+)"', data)
+        match = re.search(r"^" + re.escape(name) + r'\s*=\s*"([^"]+)"', data, re.MULTILINE)
         if not match:
             self.module.fail_json(msg=f"No published version for package {name} found")
         return match.group(1)
@@ -254,7 +254,7 @@ def main():
         module.fail_json(msg="Source directory does not exist")
 
     # Set LANG env since we parse stdout
-    module.run_command_environ_update = dict(LANG="C", LC_ALL="C", LC_MESSAGES="C", LC_CTYPE="C")
+    module.run_command_environ_update = dict(LANGUAGE="C", LC_ALL="C")
 
     cargo = Cargo(module, **module.params)
     changed, out, err = False, None, None

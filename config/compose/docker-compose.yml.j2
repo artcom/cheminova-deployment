@@ -127,7 +127,7 @@ services:
 
   media-backup:
     image: {{ mc_container_image }}
-    command: ["mirror", "--watch", "--remove", "/media", "{{ mc_alias }}/{{ bucket_media_backup }}"]
+    command: ["mirror", "--watch", "/media", "{{ mc_alias }}/{{ bucket_media_backup }}"]
     volumes:
       - source: {{ mc_config_dir }}/config.json
         target: /root/.mc/config.json

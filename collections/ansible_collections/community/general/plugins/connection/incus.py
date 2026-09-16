@@ -67,6 +67,18 @@ options:
     keyword:
       - name: remote_user
     version_added: 10.4.0
+  remote_user_id_command:
+    description:
+      - Command used to retrieve the remote UID and GID of O(remote_user).
+      - Is used to set the ownership of files copied with C(put_file) when O(remote_user) is not V(root).
+      - The command is run inside the instance twice, once with the argument C(-u) to retrieve the UID and once with C(-g) to retrieve
+        the GID.
+      - In both cases the command must write the numeric ID, and nothing else, to standard output.
+    type: str
+    default: /bin/id
+    vars:
+      - name: ansible_incus_user_id_command
+    version_added: 13.4.0
   project:
     description:
       - The name of the Incus project to use (per C(incus project list)).
@@ -79,7 +91,8 @@ options:
 
 import os
 import re
-from subprocess import PIPE, Popen, call
+import shlex
+from subprocess import PIPE, Popen
 
 from ansible.errors import AnsibleConnectionFailure, AnsibleError, AnsibleFileNotFound
 from ansible.module_utils.common.process import get_bin_path
@@ -131,12 +144,18 @@ class Connection(ConnectionBase):
     def _build_command(self, cmd) -> list[str]:
         """build the command to execute on the incus host"""
 
+        # Force pseudo-terminal allocation if the active become plugin
+        # requires one (e.g. community.general.machinectl), otherwise the
+        # become helper runs without a controlling tty and silently fails.
+        require_tty = self.become is not None and getattr(self.become, "require_tty", False)
+
         exec_cmd: list[str] = [
             self._incus_cmd,
             "--project",
             self.get_option("project"),
             "exec",
             *(["-T"] if getattr(self._shell, "_IS_WINDOWS", False) else []),
+            *(["-t"] if require_tty and not getattr(self._shell, "_IS_WINDOWS", False) else []),
             f"{self.get_option('remote')}:{self._instance()}",
             "--",
         ]
@@ -157,13 +176,37 @@ class Connection(ConnectionBase):
                 exec_cmd.append(regex_match.group("executable"))
                 if args := regex_match.group("args"):
                     exec_cmd.extend(args.strip().split(" "))
+
                 # Set the command argument depending on cmd or powershell and the rest of it
                 exec_cmd.append(regex_match.group("command"))
+
                 if post_args := regex_match.group("post_args"):
-                    exec_cmd.append(post_args.strip())
+                    post_args = post_args.strip()
+
+                    # Keep quotes from becoming literal PowerShell argument content.
+                    if len(post_args) >= 2 and post_args[0] == post_args[-1] and post_args[0] in ("'", '"'):
+                        self._display.v(
+                            "WARNING: PowerShell -Command argument is wrapped in outer quotes; "
+                            "this connection plugin strips those quotes and behavior may differ "
+                            "from a direct shell run. Prefer passing -Command without extra "
+                            "outer quoting.",
+                            host=self._instance(),
+                        )
+                        post_args = post_args[1:-1]
+
+                    exec_cmd.append(post_args)
             else:
-                # For anything else using -EncodedCommand or else, just split on space.
-                exec_cmd.extend(cmd.split(" "))
+                # Keep quotes from becoming literal PowerShell argument content.
+                # shlex is not a full PowerShell/Windows command-line parser,
+                # but with posix=False it reliably keeps quoted segments (for
+                # example, paths with spaces) as single argv items, which is
+                # what we need before passing arguments to incus exec.
+                parts = shlex.split(cmd, posix=False)
+                for i, part in enumerate(parts[:-1]):
+                    if part.lower() in {"-enc", "-encodedcommand", "-file", "-f"}:
+                        parts[i + 1] = parts[i + 1].strip("'\"")
+                        break
+                exec_cmd.extend(parts)
         else:
             if self.get_option("remote_user") != "root":
                 self._display.vvv(
@@ -197,25 +240,22 @@ class Connection(ConnectionBase):
         process = Popen(local_cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate(in_data)
 
-        stdout = to_text(stdout)
-        stderr = to_text(stderr)
-
-        if stderr.startswith("Error: ") and stderr.rstrip().endswith(": Instance is not running"):
+        if stderr.startswith(b"Error: ") and stderr.rstrip().endswith(b": Instance is not running"):
             raise AnsibleConnectionFailure(
                 f"instance not running: {self._instance()} (remote={self.get_option('remote')}, project={self.get_option('project')})"
             )
 
-        if stderr.startswith("Error: ") and stderr.rstrip().endswith(": Instance not found"):
+        if stderr.startswith(b"Error: ") and stderr.rstrip().endswith(b": Instance not found"):
             raise AnsibleConnectionFailure(
                 f"instance not found: {self._instance()} (remote={self.get_option('remote')}, project={self.get_option('project')})"
             )
 
-        if stderr.startswith("Error: ") and ": User does not have permission " in stderr:
+        if stderr.startswith(b"Error: ") and b": User does not have permission " in stderr:
             raise AnsibleConnectionFailure(
                 f"instance access denied: {self._instance()} (remote={self.get_option('remote')}, project={self.get_option('project')})"
             )
 
-        if stderr.startswith("Error: ") and ": User does not have entitlement " in stderr:
+        if stderr.startswith(b"Error: ") and b": User does not have entitlement " in stderr:
             raise AnsibleConnectionFailure(
                 f"instance access denied: {self._instance()} (remote={self.get_option('remote')}, project={self.get_option('project')})"
             )
@@ -225,12 +265,14 @@ class Connection(ConnectionBase):
     def _get_remote_uid_gid(self) -> tuple[int, int]:
         """Get the user and group ID of 'remote_user' from the instance."""
 
-        rc, uid_out, err = self.exec_command("/bin/id -u")
+        id_cmd = self.get_option("remote_user_id_command")
+
+        rc, uid_out, err = self.exec_command(f"{id_cmd} -u")
         if rc != 0:
             raise AnsibleError(f"Failed to get remote uid for user {self.get_option('remote_user')}: {err}")
         uid = uid_out.strip()
 
-        rc, gid_out, err = self.exec_command("/bin/id -g")
+        rc, gid_out, err = self.exec_command(f"{id_cmd} -g")
         if rc != 0:
             raise AnsibleError(f"Failed to get remote gid for user {self.get_option('remote_user')}: {err}")
         gid = gid_out.strip()
@@ -278,7 +320,11 @@ class Connection(ConnectionBase):
 
         local_cmd = [to_bytes(i, errors="surrogate_or_strict") for i in local_cmd]
 
-        call(local_cmd)
+        process = Popen(local_cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        _stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise AnsibleError(f"failed to transfer file to instance {self._instance()}: {to_text(stderr).strip()}")
 
     def fetch_file(self, in_path, out_path):
         """fetch a file from Incus to local"""
@@ -299,7 +345,11 @@ class Connection(ConnectionBase):
 
         local_cmd = [to_bytes(i, errors="surrogate_or_strict") for i in local_cmd]
 
-        call(local_cmd)
+        process = Popen(local_cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        _stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise AnsibleError(f"failed to transfer file from instance {self._instance()}: {to_text(stderr).strip()}")
 
     def close(self):
         """close the connection (nothing to do here)"""

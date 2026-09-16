@@ -484,9 +484,9 @@ options:
         type: dict
 
 extends_documentation_fragment:
-  - community.general.keycloak
-  - community.general.keycloak.actiongroup_keycloak
-  - community.general.attributes
+  - community.general._keycloak
+  - community.general._keycloak.actiongroup_keycloak
+  - community.general._attributes
 
 author:
   - Laurent Paumier (@laurpaum)
@@ -723,7 +723,7 @@ from urllib.parse import urlencode
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import (
+from ansible_collections.community.general.plugins.module_utils._keycloak import (
     KeycloakAPI,
     KeycloakError,
     camel,
@@ -744,15 +744,30 @@ def normalize_kc_comp(comp):
 
 
 def sanitize(comp):
+    def sanitize_value(v):
+        """Convert list values: single-element lists to strings, multi-element lists sorted alphabetically, others as-is."""
+        if isinstance(v, list):
+            if len(v) == 0:
+                return None
+            elif len(v) == 1:
+                return v[0]
+            else:
+                return sorted(v)
+        else:
+            return v
+
     compcopy = deepcopy(comp)
     if "config" in compcopy:
-        compcopy["config"] = {k: v[0] for k, v in compcopy["config"].items()}
+        compcopy["config"] = {k: sanitize_value(v) for k, v in compcopy["config"].items()}
+        # Remove None values (empty lists converted)
+        compcopy["config"] = {k: v for k, v in compcopy["config"].items() if v is not None}
         if "bindCredential" in compcopy["config"]:
             compcopy["config"]["bindCredential"] = "**********"
     if "mappers" in compcopy:
         for mapper in compcopy["mappers"]:
             if "config" in mapper:
-                mapper["config"] = {k: v[0] for k, v in mapper["config"].items()}
+                mapper["config"] = {k: sanitize_value(v) for k, v in mapper["config"].items()}
+                mapper["config"] = {k: v for k, v in mapper["config"].items() if v is not None}
     return compcopy
 
 
@@ -886,11 +901,15 @@ def main():
     if mappers is not None:
         for mapper in mappers:
             if mapper.get("config") is not None:
-                mapper["config"] = {
-                    k: [str(v).lower() if not isinstance(v, str) else v]
-                    for k, v in mapper["config"].items()
-                    if mapper["config"][k] is not None
-                }
+                new_config = {}
+                for k, v in mapper["config"].items():
+                    if v is None:
+                        continue
+                    if isinstance(v, list):
+                        new_config[k] = [str(item).lower() if not isinstance(item, str) else item for item in v]
+                    else:
+                        new_config[k] = [str(v).lower() if not isinstance(v, str) else v]
+                mapper["config"] = new_config
 
     # Filter and map the parameters names that apply
     comp_params = [

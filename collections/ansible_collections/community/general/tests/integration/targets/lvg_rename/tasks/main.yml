@@ -10,16 +10,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 - name: Install required packages (Linux)
-  when: ansible_system == 'Linux'
+  when: ansible_facts.system == 'Linux'
   ansible.builtin.package:
     name: lvm2
     state: present
 
 - name: Test lvg_rename module
   block:
-    - import_tasks: setup.yml
+    - ansible.builtin.import_tasks: setup.yml
 
-    - import_tasks: test.yml
+    - ansible.builtin.import_tasks: test.yml
 
   always:
-    - import_tasks: teardown.yml
+    - ansible.builtin.import_tasks: teardown.yml

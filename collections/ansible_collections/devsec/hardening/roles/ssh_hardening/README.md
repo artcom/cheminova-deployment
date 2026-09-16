@@ -1,7 +1,7 @@
 # dev-sec.ssh_hardening
 
 [![devsec.ssh_hardening](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening.yml/badge.svg)](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening.yml)
-[![devsec.ssh_hardening BSD](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening_bsd.yml/badge.svg)](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening_bsd.yml)
+[![devsec.ssh_hardening VM](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening_vm.yml/badge.svg)](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening_vm.yml)
 [![devsec.ssh_hardening with custom tests](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening_custom_tests.yml/badge.svg)](https://github.com/dev-sec/ansible-collection-hardening/actions/workflows/ssh_hardening_custom_tests.yml)
 
 ## Description
@@ -49,7 +49,7 @@ For more information, see [this issue](https://github.com/dev-sec/ansible-collec
 - EL
   - 8, 9, 10
 - Ubuntu
-  - focal, jammy, noble
+  - jammy, noble, resolute
 - Debian
   - trixie, bookworm, bullseye
 - Alpine
@@ -58,7 +58,7 @@ For more information, see [this issue](https://github.com/dev-sec/ansible-collec
 - ArchLinux
 - SmartOS
 - FreeBSD
-  - 13.2, 14.0
+  - 14.0
 - OpenBSD
   - 7.0
 

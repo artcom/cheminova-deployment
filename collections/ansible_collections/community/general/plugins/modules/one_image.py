@@ -14,8 +14,8 @@ description:
 requirements:
   - pyone
 extends_documentation_fragment:
-  - community.general.opennebula
-  - community.general.attributes
+  - community.general._opennebula
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -370,7 +370,7 @@ snapshots:
 
 import time
 
-from ansible_collections.community.general.plugins.module_utils.opennebula import OpenNebulaModule
+from ansible_collections.community.general.plugins.module_utils._opennebula import OpenNebulaModule
 
 IMAGE_STATES = [
     "INIT",
@@ -467,10 +467,10 @@ class ImageModule(OpenNebulaModule):
         return None
 
     def get_image_by_name(self, image_name):
-        return self.get_image(lambda image: (image_name == image.NAME))
+        return self.get_image(lambda image: image_name == image.NAME)
 
     def get_image_by_id(self, image_id):
-        return self.get_image(lambda image: (image_id == image.ID))
+        return self.get_image(lambda image: image_id == image.ID)
 
     def get_image_instance(self, requested_id, requested_name):
         # Using 'if requested_id:' doesn't work properly when requested_id=0

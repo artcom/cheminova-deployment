@@ -18,7 +18,7 @@ short_description: Install and uninstall homebrew casks
 description:
   - Manages Homebrew casks.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -141,21 +141,23 @@ EXAMPLES = r"""
     greedy: true
 
 - name: Using sudo password for installing cask
+  # ansible_become_password must be set in inventory or group_vars; it is not populated by -K
   community.general.homebrew_cask:
     name: wireshark
     state: present
-    sudo_password: "{{ ansible_become_pass }}"
+    sudo_password: "{{ ansible_become_password }}"
 """
 
 import os
 import re
+import shlex
 import tempfile
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.common.text.converters import to_bytes
 
-from ansible_collections.community.general.plugins.module_utils.homebrew import HomebrewValidate
-from ansible_collections.community.general.plugins.module_utils.version import LooseVersion
+from ansible_collections.community.general.plugins.module_utils._homebrew import HomebrewValidate
+from ansible_collections.community.general.plugins.module_utils._version import LooseVersion
 
 
 # exceptions -------------------------------------------------------------- {{{
@@ -438,14 +440,22 @@ class HomebrewCask:
             return self.brew_version
 
         cmd = [self.brew_path, "--version"]
-
         dummy, out, dummy = self.module.run_command(cmd, check_rc=True)
 
-        pattern = r"Homebrew (.*)(\d+\.\d+\.\d+)(-dirty)?"
+        # Anchored immediately after "Homebrew " so the version group can't drift onto a
+        # later substring of the output; ``\d+(?:\.\d+)+`` accepts any number of dot-separated
+        # segments rather than assuming exactly three (some Homebrew builds report more, e.g.
+        # "Homebrew 4.6.13.1-custom-...").
+        pattern = r"Homebrew\s+(>=)?(\d+(?:\.\d+)+)"
         rematch = re.search(pattern, out)
         if not rematch:
             self.module.fail_json(msg="Failed to match regex to get brew version", stdout=out)
-        self.brew_version = rematch.groups()[1]
+
+        placeholder, version = rematch.groups()
+        if placeholder:
+            version = "99.0.0"
+
+        self.brew_version = version
         return self.brew_version
 
     def _brew_cask_command_is_deprecated(self):
@@ -476,13 +486,11 @@ class HomebrewCask:
         rc, out, err = "", "", ""
 
         with tempfile.NamedTemporaryFile() as sudo_askpass_file:
-            sudo_askpass_file.write(b"#!/bin/sh\n\necho '%s'\n" % to_bytes(self.sudo_password))
+            sudo_askpass_file.write(to_bytes(f"#!/bin/sh\necho {shlex.quote(self.sudo_password)}\n"))
+            sudo_askpass_file.flush()
             os.chmod(sudo_askpass_file.name, 0o700)
-            sudo_askpass_file.file.close()
 
             rc, out, err = self.module.run_command(cmd, environ_update={"SUDO_ASKPASS": sudo_askpass_file.name})
-
-            self.module.add_cleanup_file(sudo_askpass_file.name)
 
         return (rc, out, err)
 
@@ -652,7 +660,7 @@ class HomebrewCask:
         else:
             rc, out, err = self.module.run_command(cmd)
 
-        if self._current_cask_is_installed() and not self._current_cask_is_outdated():
+        if rc == 0:
             self.changed_count += 1
             self.changed = True
             self.message = f"Cask upgraded: {self.current_cask}"
@@ -779,7 +787,7 @@ def main():
         supports_check_mode=True,
     )
 
-    module.run_command_environ_update = dict(LANG="C", LC_ALL="C", LC_MESSAGES="C", LC_CTYPE="C")
+    module.run_command_environ_update = dict(LANGUAGE="C", LC_ALL="C")
 
     p = module.params
 

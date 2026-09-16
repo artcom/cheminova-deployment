@@ -62,8 +62,8 @@ options:
     type: str
     version_added: '2.0.0'
 extends_documentation_fragment:
-  - community.general.influxdb
-  - community.general.attributes
+  - community.general._influxdb
+  - community.general._attributes
 """
 
 EXAMPLES = r"""
@@ -143,7 +143,7 @@ except ImportError:
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.influxdb import InfluxDb
+from ansible_collections.community.general.plugins.module_utils._influxdb import InfluxDb
 
 VALID_DURATION_REGEX = re.compile(r"^(INF|(\d+(ns|u|µ|ms|s|m|h|d|w)))+$")
 
@@ -281,9 +281,12 @@ def alter_retention_policy(module, client, retention_policy):
     ):
         if not module.check_mode:
             try:
-                client.alter_retention_policy(
-                    policy_name, database_name, duration, replication, default, shard_group_duration
-                )
+                if shard_group_duration:
+                    client.alter_retention_policy(
+                        policy_name, database_name, duration, replication, default, shard_group_duration
+                    )
+                else:
+                    client.alter_retention_policy(policy_name, database_name, duration, replication, default)
             except exceptions.InfluxDBClientError as e:
                 module.fail_json(msg=e.content)
         changed = True

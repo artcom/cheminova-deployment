@@ -121,10 +121,10 @@ EXAMPLES = r'''
   ansible.posix.authorized_key:
     user: deploy
     state: present
-    key: '{{ item }}'
-  with_file:
-    - public_keys/doe-jane
-    - public_keys/doe-john
+    key: "{{ lookup('file', item) }}"
+    loop:
+      - public_keys/doe-jane
+      - public_keys/doe-john
 
 - name: Set authorized key defining key options
   ansible.posix.authorized_key:
@@ -225,12 +225,21 @@ import os.path
 import tempfile
 import re
 import shlex
+import errno
+import traceback
 from operator import itemgetter
 
-from ansible.module_utils._text import to_native
+# TODO(Python2): urllib.parse is available in Python 3. This module may run on
+# target hosts with Python 2.7 (e.g., older RHEL systems in CI integration tests).
+# Remove the try/except fallback to urlparse when Python 2 support is dropped.
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.text.converters import to_native
 from ansible.module_utils.urls import fetch_url
-from ansible.module_utils.six.moves.urllib.parse import urlparse
 
 
 class keydict(dict):
@@ -298,6 +307,17 @@ class keydict(dict):
         return [item[1] for item in self.items()]
 
 
+def _safe_open_write(module, path, follow):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if not follow and hasattr(os, 'O_NOFOLLOW'):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(path, flags, int('0600', 8))
+    except OSError as e:
+        module.fail_json(msg="File open failed %s : %s" % (path, to_native(e)))
+    return fd
+
+
 def keyfile(module, user, write=False, path=None, manage_dir=True, follow=False):
     """
     Calculate name of authorized keys file, optionally creating the
@@ -350,7 +370,7 @@ def keyfile(module, user, write=False, path=None, manage_dir=True, follow=False)
                 module.fail_json(msg="Failed to create directory %s : %s" % (sshdir, to_native(e)))
             if module.selinux_enabled():
                 module.set_default_selinux_context(sshdir, False)
-        os.chown(sshdir, uid, gid)
+        os.chown(sshdir, uid, gid, follow_symlinks=follow)
         os.chmod(sshdir, int('0700', 8))
 
     if not os.path.exists(keysfile):
@@ -358,16 +378,13 @@ def keyfile(module, user, write=False, path=None, manage_dir=True, follow=False)
         if not os.path.exists(basedir):
             os.makedirs(basedir)
 
-        f = None
-        try:
-            f = open(keysfile, "w")  # touches file so we can set ownership and perms
-        finally:
-            f.close()
+        fd = _safe_open_write(module, keysfile, follow)
+        os.close(fd)
         if module.selinux_enabled():
             module.set_default_selinux_context(keysfile, False)
 
     try:
-        os.chown(keysfile, uid, gid)
+        os.chown(keysfile, uid, gid, follow_symlinks=follow)
         os.chmod(keysfile, int('0600', 8))
     except OSError:
         pass
@@ -475,16 +492,18 @@ def parsekey(module, raw_key, rank=None):
     return (key, key_type, options, comment, rank)
 
 
-def readfile(filename):
-
-    if not os.path.isfile(filename):
-        return ''
-
-    f = open(filename)
+def readfile(module, filename):
     try:
-        return f.read()
-    finally:
-        f.close()
+        with open(filename, 'r') as f:
+            return f.read()
+    except IOError as e:
+        if e.errno == errno.EACCES:
+            module.fail_json(msg="Permission denied on file or path for authorized keys file: %s" % filename,
+                             exception=traceback.format_exc())
+        elif e.errno == errno.ENOENT:
+            return ''
+        else:
+            raise
 
 
 def parsekeys(module, lines):
@@ -596,8 +615,8 @@ def enforce_state(module, params):
 
     # check current state -- just get the filename, don't create file
     do_write = False
-    params["keyfile"] = keyfile(module, user, do_write, path, manage_dir)
-    existing_content = readfile(params["keyfile"])
+    params["keyfile"] = keyfile(module, user, do_write, path, manage_dir, follow)
+    existing_content = readfile(module, params["keyfile"])
     existing_keys = parsekeys(module, existing_content)
 
     # Add a place holder for keys that should exist in the state=present and
@@ -685,6 +704,11 @@ def enforce_state(module, params):
 
         if not module.check_mode:
             writefile(module, filename, new_content)
+            user_entry = pwd.getpwnam(user)
+            uid = user_entry.pw_uid
+            gid = user_entry.pw_gid
+            os.chown(filename, uid, gid, follow_symlinks=follow)
+            os.chmod(filename, int('0600', 8))
         params['changed'] = True
 
     return params

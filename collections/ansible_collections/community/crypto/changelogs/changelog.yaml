@@ -1898,3 +1898,135 @@ releases:
       - 3.1.0.yml
       - 964-luks-device-tpm2-priority.yml
     release_date: '2025-12-29'
+  3.1.1:
+    changes:
+      bugfixes:
+        - crypto_info, openssl_privatekey, openssl_privatekey_pipe - fix detection
+          of EC support for cryptography 46.0.5+ (https://github.com/ansible-collections/community.crypto/pull/981).
+      release_summary: Bugfix release.
+    fragments:
+      - 3.1.1.yml
+      - 981-ec.yml
+    release_date: '2026-02-12'
+  3.2.0:
+    changes:
+      bugfixes:
+        - acme_* modules - improve handling of authz deactivation, and improve error
+          message in case of bad authz states (https://github.com/ansible-collections/community.crypto/pull/998).
+      minor_changes:
+        - acme_* modules - experimentally support ``dns-account-01`` challenge type
+          according to `acme-dns-account-label draft 02 <https://datatracker.ietf.org/doc/html/draft-ietf-acme-dns-account-label-02>`__.
+          Note that breaking changes to this challenge type can also happen in minor
+          releases until the acme-dns-account-label draft has been finalized as an
+          RFC (https://github.com/ansible-collections/community.crypto/pull/996).
+        - acme_* modules - experimentally support ``dns-persist-01`` challenge type
+          according to `acme-dns-persist draft 01 <https://www.ietf.org/archive/id/draft-ietf-acme-dns-persist-01.html>`__.
+          Note that breaking changes to this challenge type can also happen in minor
+          releases until the acme-dns-persist draft has been finalized as an RFC (https://github.com/ansible-collections/community.crypto/pull/997).
+      release_summary: 'Bugfix and feature release.
+
+
+        This release is dedicated to the memory of `Michael O. Rabin <https://en.wikipedia.org/wiki/Michael_O._Rabin>`__,
+        who passed away a few days before this release.'
+    fragments:
+      - 3.2.0.yml
+      - 996-acme-dns-account-01.yml
+      - 997-acme-dns-persist-01.yml
+      - 998-acme.yml
+    plugins:
+      filter:
+        - description: Craft a DNS record for ACME :literal:`dns\-persist\-01` challenges.
+          name: acme_dns_persist_record
+          namespace: null
+        - description: Parse a DNS record for ACME :literal:`dns\-persist\-01` challenges.
+          name: acme_dns_persist_record_parse
+          namespace: null
+    release_date: '2026-04-19'
+  3.2.1:
+    changes:
+      bugfixes:
+        - acme_* modules - adjust OpenSSL RSA private key output parsing to OpenSSL
+          4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1005).
+        - acme_challenge_cert_helper - adjust private key check for new private key
+          types in cryptography 47.0.0 (https://github.com/ansible-collections/community.crypto/pull/1007).
+      release_summary: Bugfix release.
+    fragments:
+      - 1005-openssl-4.yml
+      - 1007-cryptography-47.yml
+      - 3.2.1.yml
+    release_date: '2026-05-14'
+  3.2.2:
+    changes:
+      bugfixes:
+        - gpg_fingerprint lookup plugin, gpg_fingerprint filter plugin - prevent GnuPG
+          from unnecessarily starting gpg-agent (https://github.com/ansible-collections/community.crypto/issues/1026,
+          https://github.com/ansible-collections/community.crypto/pull/1029).
+        - openssh_* modules - prevent use of currently unsupported MLDSA private keys
+          in the cryptography backend (https://github.com/ansible-collections/community.crypto/pull/1044).
+        - openssl_pkcs12 - prevent use of MLDSA private keys, which are not supported
+          by PKCS#12, or at least cryptography's implementation (https://github.com/ansible-collections/community.crypto/pull/1044).
+      release_summary: Bugfix release.
+    fragments:
+      - 1029-gnupg.yml
+      - 1044-pqc.yml
+      - 3.2.2.yml
+    release_date: '2026-06-14'
+  3.3.0:
+    changes:
+      minor_changes:
+        - Update vendored list of OID names from OpenSSL (https://github.com/ansible-collections/community.crypto/pull/1057).
+        - openssl_privatekey\*, openssl_publickey\*, openssl_csr\*, x509_certificate\*
+          - support ML-DSA-{44,65,87} private keys (https://github.com/ansible-collections/community.crypto/issues/1056,
+          https://github.com/ansible-collections/community.crypto/pull/1058).
+      release_summary: Feature release.
+    fragments:
+      - 1057-openssl-names.yml
+      - 1058-privatekey-ml-dsa.yml
+      - 3.3.0.yml
+    release_date: '2026-07-13'
+  3.4.0:
+    changes:
+      deprecated_features:
+        - get_certificate - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_csr - the ``select_crypto_backend`` option is deprecated and will
+          be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_csr_info - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_csr_pipe - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_pkcs12 - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_privatekey - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_privatekey_info - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_privatekey_pipe - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_publickey - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_publickey_info - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_signature - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - openssl_signature_info - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - x509_certificate - the ``select_crypto_backend`` option is deprecated and
+          will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - x509_certificate_info - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+        - x509_certificate_pipe - the ``select_crypto_backend`` option is deprecated
+          and will be removed from community.crypto 4.0.0 (https://github.com/ansible-collections/community.crypto/pull/1072).
+      release_summary: Feature release with new PKCS#12 modules and some deprecations.
+    fragments:
+      - 3.4.0.yml
+      - backend-depr.yml
+    modules:
+      - description: Extract certificate and private key from PKCS#12 archive.
+        name: openssl_pkcs12_extract
+        namespace: ''
+      - description: Return certificates and (optionally) private key of a PKCS#12
+          file.
+        name: openssl_pkcs12_info
+        namespace: ''
+    release_date: '2026-09-06'

@@ -5,12 +5,12 @@
 
 - name: Test systemd_creds_decrypt
   when:
-    - ansible_systemd.version is defined
-    - ansible_systemd.version | int >= 250
+    - ansible_facts.systemd.version is defined
+    - ansible_facts.systemd.version | int >= 250
   block:
     - name: Encrypt secret
       become: true
-      systemd_creds_encrypt:
+      community.general.systemd_creds_encrypt:
         name: api
         not_after: +48hr
         secret: access_token

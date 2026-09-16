@@ -20,9 +20,9 @@ author:
 requirements:
   - python-gitlab python module
 extends_documentation_fragment:
-  - community.general.auth_basic
-  - community.general.gitlab
-  - community.general.attributes
+  - community.general._auth_basic
+  - community.general._gitlab
+  - community.general._attributes
 
 attributes:
   check_mode:
@@ -55,10 +55,20 @@ options:
     default: true
   push_events_branch_filter:
     description:
-      - Branch name of wildcard to trigger hook on push events.
+      - Branch name, wildcard, or regular expression to trigger hook on push events.
+      - O(branch_filter_strategy) controls whether this is interpreted as a wildcard or as a regular expression.
     type: str
     version_added: '0.2.0'
     default: ''
+  branch_filter_strategy:
+    description:
+      - How O(push_events_branch_filter) is used to filter push events by branch.
+      - With V(wildcard) the filter is matched as a wildcard expression, with V(regex) as a regular expression.
+      - With V(all_branches) push events are not filtered by branch and O(push_events_branch_filter) is ignored.
+      - If not specified, GitLab uses V(wildcard) for new hooks, and the strategy of an existing hook is left unchanged.
+    type: str
+    choices: ["wildcard", "regex", "all_branches"]
+    version_added: 13.4.0
   issues_events:
     description:
       - Trigger hook on issues events.
@@ -111,6 +121,11 @@ options:
       - If this is present it always results in a change as it cannot be retrieved from GitLab.
       - It shows up in the C(X-GitLab-Token) HTTP request header.
     type: str
+  custom_webhook_template:
+    description:
+      - Custom webhook template for the project webhook.
+    type: str
+    version_added: 13.3.0
 """
 
 EXAMPLES = r"""
@@ -124,6 +139,27 @@ EXAMPLES = r"""
     push_events: true
     tag_push_events: true
     token: "my-super-secret-token-that-my-ci-server-will-check"
+
+- name: Add a project hook with a custom webhook template
+  community.general.gitlab_hook:
+    api_url: https://gitlab.example.com/
+    api_token: "{{ access_token }}"
+    project: "my_group/my_project"
+    hook_url: "https://my-ci-server.example.com/gitlab-hook"
+    state: present
+    push_events: true
+    custom_webhook_template: !unsafe '{"event": "{{object_kind}}", "project": "{{project.name}}"}'
+
+- name: Add a project hook triggered by push events on branches matching a regular expression
+  community.general.gitlab_hook:
+    api_url: https://gitlab.example.com/
+    api_token: "{{ access_token }}"
+    project: "my_group/my_project"
+    hook_url: "https://my-ci-server.example.com/gitlab-hook"
+    state: present
+    push_events: true
+    push_events_branch_filter: '^(main|release/.*)$'
+    branch_filter_strategy: regex
 
 - name: "Delete the previous hook"
   community.general.gitlab_hook:
@@ -169,7 +205,7 @@ hook:
 from ansible.module_utils.api import basic_auth_argument_spec
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.gitlab import (
+from ansible_collections.community.general.plugins.module_utils._gitlab import (
     auth_argument_spec,
     find_project,
     gitlab_authentication,
@@ -193,45 +229,35 @@ class GitLabHook:
     def create_or_update_hook(self, project, hook_url, options):
         changed = False
 
+        hook_arguments = {
+            "url": hook_url,
+            "push_events": options["push_events"],
+            "push_events_branch_filter": options["push_events_branch_filter"],
+            "issues_events": options["issues_events"],
+            "merge_requests_events": options["merge_requests_events"],
+            "tag_push_events": options["tag_push_events"],
+            "note_events": options["note_events"],
+            "job_events": options["job_events"],
+            "pipeline_events": options["pipeline_events"],
+            "wiki_page_events": options["wiki_page_events"],
+            "enable_ssl_verification": options["enable_ssl_verification"],
+            "token": options["token"],
+            "custom_webhook_template": options["custom_webhook_template"],
+        }
+
         # Because we have already call userExists in main()
         if self.hook_object is None:
-            hook = self.create_hook(
-                project,
-                {
-                    "url": hook_url,
-                    "push_events": options["push_events"],
-                    "push_events_branch_filter": options["push_events_branch_filter"],
-                    "issues_events": options["issues_events"],
-                    "merge_requests_events": options["merge_requests_events"],
-                    "tag_push_events": options["tag_push_events"],
-                    "note_events": options["note_events"],
-                    "job_events": options["job_events"],
-                    "pipeline_events": options["pipeline_events"],
-                    "wiki_page_events": options["wiki_page_events"],
-                    "releases_events": options["releases_events"],
-                    "enable_ssl_verification": options["enable_ssl_verification"],
-                    "token": options["token"],
-                },
-            )
+            if options["releases_events"] is not None:
+                hook_arguments["releases_events"] = options["releases_events"]
+            if options["branch_filter_strategy"] is not None:
+                hook_arguments["branch_filter_strategy"] = options["branch_filter_strategy"]
+            hook = self.create_hook(project, hook_arguments)
             changed = True
         else:
-            changed, hook = self.update_hook(
-                self.hook_object,
-                {
-                    "push_events": options["push_events"],
-                    "push_events_branch_filter": options["push_events_branch_filter"],
-                    "issues_events": options["issues_events"],
-                    "merge_requests_events": options["merge_requests_events"],
-                    "tag_push_events": options["tag_push_events"],
-                    "note_events": options["note_events"],
-                    "job_events": options["job_events"],
-                    "pipeline_events": options["pipeline_events"],
-                    "wiki_page_events": options["wiki_page_events"],
-                    "releases_events": options["releases_events"],
-                    "enable_ssl_verification": options["enable_ssl_verification"],
-                    "token": options["token"],
-                },
-            )
+            update_arguments = hook_arguments.copy()
+            update_arguments["releases_events"] = options["releases_events"]
+            update_arguments["branch_filter_strategy"] = options["branch_filter_strategy"]
+            changed, hook = self.update_hook(self.hook_object, update_arguments)
 
         self.hook_object = hook
         if changed:
@@ -312,6 +338,7 @@ def main():
             hook_url=dict(type="str", required=True),
             push_events=dict(type="bool", default=True),
             push_events_branch_filter=dict(type="str", default=""),
+            branch_filter_strategy=dict(type="str", choices=["wildcard", "regex", "all_branches"]),
             issues_events=dict(type="bool", default=False),
             merge_requests_events=dict(type="bool", default=False),
             tag_push_events=dict(type="bool", default=False),
@@ -322,6 +349,7 @@ def main():
             releases_events=dict(type="bool"),
             hook_validate_certs=dict(type="bool", default=False, aliases=["enable_ssl_verification"]),
             token=dict(type="str", no_log=True),
+            custom_webhook_template=dict(type="str"),
         )
     )
 
@@ -347,6 +375,7 @@ def main():
     hook_url = module.params["hook_url"]
     push_events = module.params["push_events"]
     push_events_branch_filter = module.params["push_events_branch_filter"]
+    branch_filter_strategy = module.params["branch_filter_strategy"]
     issues_events = module.params["issues_events"]
     merge_requests_events = module.params["merge_requests_events"]
     tag_push_events = module.params["tag_push_events"]
@@ -357,6 +386,7 @@ def main():
     releases_events = module.params["releases_events"]
     enable_ssl_verification = module.params["hook_validate_certs"]
     hook_token = module.params["token"]
+    custom_webhook_template = module.params["custom_webhook_template"]
 
     gitlab_hook = GitLabHook(module, gitlab_instance)
 
@@ -381,6 +411,7 @@ def main():
             {
                 "push_events": push_events,
                 "push_events_branch_filter": push_events_branch_filter,
+                "branch_filter_strategy": branch_filter_strategy,
                 "issues_events": issues_events,
                 "merge_requests_events": merge_requests_events,
                 "tag_push_events": tag_push_events,
@@ -391,6 +422,7 @@ def main():
                 "releases_events": releases_events,
                 "enable_ssl_verification": enable_ssl_verification,
                 "token": hook_token,
+                "custom_webhook_template": custom_webhook_template,
             },
         ):
             module.exit_json(

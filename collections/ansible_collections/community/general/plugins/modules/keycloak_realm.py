@@ -285,12 +285,26 @@ options:
     aliases:
       - failureFactor
     type: int
+  first_broker_login_flow:
+    description:
+      - The realm first broker login flow.
+    aliases:
+      - firstBrokerLoginFlow
+    type: str
+    version_added: 12.5.0
   internationalization_enabled:
     description:
       - The realm internationalization enabled option.
     aliases:
       - internationalizationEnabled
     type: bool
+  localization_texts:
+    description:
+      - The custom localization texts for a realm.
+    aliases:
+      - localizationTexts
+    type: dict
+    version_added: 12.4.0
   login_theme:
     description:
       - The realm login theme.
@@ -315,6 +329,13 @@ options:
     aliases:
       - maxFailureWaitSeconds
     type: int
+  max_secondary_auth_failures:
+    description:
+      - The realm max secondary authentication failures (used with brute force detection for secondary auth mechanisms).
+    aliases:
+      - maxSecondaryAuthFailures
+    type: int
+    version_added: 13.1.0
   max_temporary_lockouts:
     description:
       - The realm max temporary lockouts.
@@ -741,9 +762,9 @@ options:
     version_added: 12.1.0
 
 extends_documentation_fragment:
-  - community.general.keycloak
-  - community.general.keycloak.actiongroup_keycloak
-  - community.general.attributes
+  - community.general._keycloak
+  - community.general._keycloak.actiongroup_keycloak
+  - community.general._attributes
 
 author:
   - Christophe Gilles (@kris2kris)
@@ -811,7 +832,7 @@ end_state:
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import (
+from ansible_collections.community.general.plugins.module_utils._keycloak import (
     KeycloakAPI,
     KeycloakError,
     camel,
@@ -916,11 +937,14 @@ def main():
         events_expiration=dict(type="int", aliases=["eventsExpiration"]),
         events_listeners=dict(type="list", elements="str", aliases=["eventsListeners"]),
         failure_factor=dict(type="int", aliases=["failureFactor"]),
+        first_broker_login_flow=dict(type="str", aliases=["firstBrokerLoginFlow"]),
         internationalization_enabled=dict(type="bool", aliases=["internationalizationEnabled"]),
+        localization_texts=dict(type="dict", aliases=["localizationTexts"]),
         login_theme=dict(type="str", aliases=["loginTheme"]),
         login_with_email_allowed=dict(type="bool", aliases=["loginWithEmailAllowed"]),
         max_delta_time_seconds=dict(type="int", aliases=["maxDeltaTimeSeconds"]),
         max_failure_wait_seconds=dict(type="int", aliases=["maxFailureWaitSeconds"]),
+        max_secondary_auth_failures=dict(type="int", aliases=["maxSecondaryAuthFailures"]),
         max_temporary_lockouts=dict(type="int", aliases=["maxTemporaryLockouts"]),
         minimum_quick_login_wait_seconds=dict(type="int", aliases=["minimumQuickLoginWaitSeconds"]),
         not_before=dict(type="int", aliases=["notBefore"]),

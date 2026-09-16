@@ -281,9 +281,9 @@ options:
         type: dict
 
 extends_documentation_fragment:
-  - community.general.keycloak
-  - community.general.keycloak.actiongroup_keycloak
-  - community.general.attributes
+  - community.general._keycloak
+  - community.general._keycloak.actiongroup_keycloak
+  - community.general._attributes
 
 author:
   - Laurent Paumier (@laurpaum)
@@ -367,6 +367,35 @@ EXAMPLES = r"""
           user.attribute: roles
           attribute.friendly.name: User Roles
           attribute.name: roles
+          syncMode: INHERIT
+
+- name: Create OIDC identity provider, authentication with credentials and advanced claim to group
+  community.general.keycloak_identity_provider:
+    state: present
+    auth_keycloak_url: https://auth.example.com/auth
+    auth_realm: master
+    auth_username: admin
+    auth_password: admin
+    realm: myrealm
+    alias: oidc-idp
+    display_name: OpenID Connect IdP
+    enabled: true
+    provider_id: oidc
+    config:
+      issuer: https://idp.example.com
+      authorizationUrl: https://idp.example.com/auth
+      tokenUrl: https://idp.example.com/token
+      userInfoUrl: https://idp.example.com/userinfo
+      clientAuthMethod: client_secret_post
+      clientId: my-client
+      clientSecret: secret
+      syncMode: FORCE
+    mappers:
+      - name: group_name
+        identityProviderMapper: oidc-advanced-group-idp-mapper
+        config:
+          claims: '[{"key":"my_key","value":"my_value"}]'
+          group: group_name
           syncMode: INHERIT
 """
 
@@ -458,7 +487,7 @@ from copy import deepcopy
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import (
+from ansible_collections.community.general.plugins.module_utils._keycloak import (
     KeycloakAPI,
     KeycloakError,
     camel,

@@ -17,6 +17,8 @@ IN_CI = os.environ.get("CI") == "true"
 
 try:
     import antsibull_nox  # type: ignore[import-not-found]
+    from antsibull_nox.cli import run as run_antsibull_nox  # type: ignore[import-not-found]
+    from antsibull_nox.sessions import install_packages
 except ImportError:
     print("You need to install antsibull-nox in the same Python environment as nox.")
     sys.exit(1)
@@ -31,14 +33,14 @@ def aliases(session: nox.Session) -> None:
 
 
 @nox.session(name="botmeta", default=True)
+@install_packages(packages=["PyYAML", "pydantic"])
 def botmeta(session: nox.Session) -> None:
-    session.install("PyYAML", "voluptuous")
     session.run("python", "tests/sanity/extra/botmeta.py")
 
 
 @nox.session(name="ansible-output", default=False)
-def ansible_output(session: nox.Session) -> None:
-    session.install(
+@install_packages(
+    packages=[
         "ansible-core",
         "antsibull-docs",
         # Needed libs for some code blocks:
@@ -46,11 +48,31 @@ def ansible_output(session: nox.Session) -> None:
         "hashids",
         # Tools for post-processing
         "ruamel.yaml",  # used by docs/docsite/reformat-yaml.py
-    )
+    ]
+)
+def ansible_output(session: nox.Session) -> None:
     args = []
     if IN_CI:
         args.append("--check")
     session.run("antsibull-docs", "ansible-output", *args, *session.posargs)
+
+
+@nox.session(name="update-azp-config", python=False)
+def update_azp_config(session: nox.Session) -> None:
+    command = [
+        "antsibull-nox",
+        "update-azp-config",
+        "--min-ansible-core",
+        "2.19",
+        "--extra-session",
+        '{"group": "Sanity", "title": "Extra sanity tests", "session": "extra-sanity-tests"}',
+    ]
+    if antsibull_nox.IN_CI:
+        command.extend(["--show-diff", "--fail-on-change"])
+    session.debug(" ".join(command))
+    result = run_antsibull_nox(command)
+    if result != 0:
+        session.error(f"Execution failed with status code {result}")
 
 
 # Allow to run the noxfile with `python noxfile.py`, `pipx run noxfile.py`, or similar.

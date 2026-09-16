@@ -14,11 +14,6 @@ description:
   - Please note that the module regenerates existing certificate if it does not match the module's options, or if it seems
     to be corrupt. If you are concerned that this could overwrite your existing certificate, consider using the O(backup)
     option.
-  - Note that this module was called C(openssl_certificate) when included directly in Ansible up to version 2.9. When moved
-    to the collection C(community.crypto), it was renamed to M(community.crypto.x509_certificate). From Ansible 2.10 on, it
-    can still be used by the old short name (or by C(ansible.builtin.openssl_certificate)), which redirects to M(community.crypto.x509_certificate).
-    When using FQCNs or when using the L(collections,https://docs.ansible.com/ansible/latest/user_guide/collections_using.html#using-collections-in-a-playbook)
-    keyword, the new name M(community.crypto.x509_certificate) should be used to avoid a deprecation warning.
 author:
   - Yanis Guenane (@Spredzy)
   - Markus Teufelberger (@MarkusTeufelberger)
@@ -235,10 +230,10 @@ from ansible_collections.community.crypto.plugins.module_utils._io import (
     write_file,
 )
 
-if t.TYPE_CHECKING:
-    from ansible.module_utils.basic import AnsibleModule  # pragma: no cover
+if t.TYPE_CHECKING:  # pragma: no cover
+    from ansible.module_utils.basic import AnsibleModule
 
-    from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.certificate import (  # pragma: no cover
+    from ansible_collections.community.crypto.plugins.module_utils._crypto.module_backends.certificate import (
         CertificateBackend,
     )
 

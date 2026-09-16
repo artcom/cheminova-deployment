@@ -20,7 +20,7 @@ description:
     when not using a minimal installation like Alpine Linux).
   - Windows and HPUX are not supported, please let us know if you find any other OS/distro in which this fails.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
 attributes:
   check_mode:
     support: full
@@ -60,6 +60,11 @@ EXAMPLES = r"""
   become: true
   community.general.timezone:
     name: Asia/Tokyo
+
+- name: Set timezone and hardware clock to UTC
+  community.general.timezone:
+    name: UTC
+    hwclock: UTC
 """
 
 import errno
@@ -340,7 +345,7 @@ class NosystemdTimezone(Timezone):
             self.update_timezone = [
                 [self.module.get_bin_path("cp", required=True), "--remove-destination", tzfile, "/etc/localtime"]
             ]
-        self.update_hwclock = self.module.get_bin_path("hwclock", required=True)
+        self.update_hwclock = self.module.get_bin_path("hwclock", required="hwclock" in self.value)
         distribution = get_distribution()
         self.conf_files["name"] = "/etc/timezone"
         self.regexps["name"] = re.compile(r"^([^\s]+)", re.MULTILINE)
@@ -660,7 +665,7 @@ class DarwinTimezone(Timezone):
         # Lookup the list of supported timezones via `systemsetup -listtimezones`.
         # Note: Skip the first line that contains the label 'Time Zones:'
         out = self.execute(self.systemsetup, "-listtimezones").splitlines()[1:]
-        tz_list = list(map(lambda x: x.strip(), out))
+        tz_list = [x.strip() for x in out]
         if tz not in tz_list:
             self.abort(f'given timezone "{tz}" is not available')
         return tz
@@ -858,6 +863,7 @@ def main():
         required_one_of=[["hwclock", "name"]],
         supports_check_mode=True,
     )
+    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
     tz = Timezone(module)
 
     # Check the current state

@@ -12,8 +12,8 @@ import os
 import tempfile
 import typing as t
 
-if t.TYPE_CHECKING:
-    from ansible.module_utils.basic import AnsibleModule  # pragma: no cover
+if t.TYPE_CHECKING:  # pragma: no cover
+    from ansible.module_utils.basic import AnsibleModule
 
 
 def load_file(*, path: str | os.PathLike, module: AnsibleModule | None = None) -> bytes:
@@ -73,14 +73,7 @@ def write_file(
     Uses file arguments from module.
     """
     # Find out parameters for file
-    try:
-        file_args = module.load_file_common_arguments(module.params, path=path)
-    except TypeError:
-        # The path argument is only supported in Ansible 2.10+. Fall back to
-        # pre-2.10 behavior of module_utils/crypto.py for older Ansible versions.
-        file_args = module.load_file_common_arguments(module.params)
-        if path is not None:
-            file_args["path"] = path
+    file_args = module.load_file_common_arguments(module.params, path=path)
     if file_args["mode"] is None:
         file_args["mode"] = default_mode
     # Create tempfile name

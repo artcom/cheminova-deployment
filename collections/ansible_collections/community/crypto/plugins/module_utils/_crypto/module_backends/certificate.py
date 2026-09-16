@@ -36,12 +36,12 @@ from ansible_collections.community.crypto.plugins.module_utils._cryptography_dep
     assert_required_cryptography_version,
 )
 
-if t.TYPE_CHECKING:
-    import datetime  # pragma: no cover
+if t.TYPE_CHECKING:  # pragma: no cover
+    import datetime
 
-    from ansible.module_utils.basic import AnsibleModule  # pragma: no cover
+    from ansible.module_utils.basic import AnsibleModule
 
-    from ansible_collections.community.crypto.plugins.module_utils._crypto.cryptography_support import (  # pragma: no cover
+    from ansible_collections.community.crypto.plugins.module_utils._crypto.cryptography_support import (
         CertificatePrivateKeyTypes,
     )
 
@@ -401,6 +401,8 @@ def get_certificate_argument_spec() -> ArgumentSpec:
                 "type": "str",
                 "default": "auto",
                 "choices": ["auto", "cryptography"],
+                "removed_in_version": "4.0.0",
+                "removed_from_collection": "community.crypto",
             },
             # General properties of a certificate
             "privatekey_path": {"type": "path"},

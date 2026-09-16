@@ -9,9 +9,10 @@
   community.general.filesystem:
     dev: '{{ dev }}'
     fstype: '{{ fstype }}'
+    label: '{{ label }}'
 
 - name: "Get filesystem UUID with 'blkid'"
-  ansible.builtin.shell:
+  ansible.builtin.shell:  # noqa: command-instead-of-shell
     cmd: "{{ get_uuid_cmd }}"
   changed_when: false
   register: blkid_ref
@@ -31,7 +32,7 @@
   check_mode: true
 
 - name: "Get filesystem UUID with 'blkid' (should remain the same)"
-  ansible.builtin.shell:
+  ansible.builtin.shell:  # noqa: command-instead-of-shell
     cmd: "{{ get_uuid_cmd }}"
   changed_when: false
   register: blkid
@@ -50,7 +51,7 @@
   register: wipefs
 
 - name: "Get filesystem UUID with 'blkid' (should be empty)"
-  ansible.builtin.shell:
+  ansible.builtin.shell:  # noqa: command-instead-of-shell
     cmd: "{{ get_uuid_cmd }}"
   changed_when: false
   failed_when: false
@@ -61,7 +62,7 @@
     that:
       - wipefs is changed
       - blkid.stdout | length == 0
-      - blkid.rc == 2
+      - blkid.rc == 2 or ansible_facts.distribution == 'Alpine'
 
 # Do it again
 - name: "Remove filesystem (idempotency)"

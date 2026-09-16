@@ -14,7 +14,7 @@ description:
   - Get inventory hosts from the Icinga2 API.
   - Uses a configuration file as an inventory source, it must end in C(.icinga2.yml) or C(.icinga2.yaml).
 extends_documentation_fragment:
-  - constructed
+  - ansible.builtin.constructed
 options:
   strict:
     version_added: 4.4.0
@@ -93,13 +93,14 @@ compose:
 """
 
 import json
+from http import HTTPStatus
 from urllib.error import HTTPError
 
 from ansible.errors import AnsibleParserError
 from ansible.module_utils.urls import open_url
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
 
-from ansible_collections.community.general.plugins.plugin_utils.unsafe import make_unsafe
+from ansible_collections.community.general.plugins.plugin_utils._unsafe import make_unsafe
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):
@@ -164,7 +165,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 self.display.vvv(f"Error returned: {error_body}")
             except Exception:
                 error_body = {"status": None}
-            if e.code == 404 and error_body.get("status") == "No objects found.":
+            if e.code == HTTPStatus.NOT_FOUND and error_body.get("status") == "No objects found.":
                 raise AnsibleParserError(
                     "Host filter returned no data. Please confirm your host_filter value is valid"
                 ) from e
@@ -173,15 +174,15 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         response_body = response.read()
         json_data = json.loads(response_body.decode("utf-8"))
         self.display.vvv(f"Returned Data: {json.dumps(json_data, indent=4, sort_keys=True)}")
-        if 200 <= response.status <= 299:
+        if HTTPStatus.OK <= response.status < HTTPStatus.MULTIPLE_CHOICES:  # 2xx codes
             return json_data
-        if response.status == 404 and json_data["status"] == "No objects found.":
+        if response.status == HTTPStatus.NOT_FOUND and json_data["status"] == "No objects found.":
             raise AnsibleParserError(f"API returned no data -- Response: {response.status} - {json_data['status']}")
-        if response.status == 401:
+        if response.status == HTTPStatus.UNAUTHORIZED:
             raise AnsibleParserError(
                 f"API was unable to complete query -- Response: {response.status} - {json_data['status']}"
             )
-        if response.status == 500:
+        if response.status == HTTPStatus.INTERNAL_SERVER_ERROR:
             raise AnsibleParserError(f"API Response - {json_data['status']} - {json_data['errors']}")
         raise AnsibleParserError(f"Unexpected data returned - {json_data['status']} - {json_data['errors']}")
 

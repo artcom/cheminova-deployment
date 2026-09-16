@@ -14,7 +14,7 @@ description:
   - This is a wrapper module around keytool, which can be used to import certificates and optionally private keys to a given
     java keystore, or remove them from it.
 extends_documentation_fragment:
-  - community.general.attributes
+  - community.general._attributes
   - ansible.builtin.files
 attributes:
   check_mode:
@@ -205,7 +205,7 @@ cmd:
 import os
 import re
 import tempfile
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from urllib.request import getproxies
 
 # import module snippets
@@ -279,7 +279,7 @@ def _get_digest_from_x509_file(module, pem_certificate_file, openssl_bin):
 
 def _export_public_cert_from_pkcs12(module, executable, pkcs_file, alias, password, dest):
     """Runs keytools to extract the public cert from a PKCS12 archive and write it to a file."""
-    export_cmd = [executable, "-list", "-noprompt", "-keystore", pkcs_file, "-storetype", "pkcs12", "-rfc"]
+    export_cmd = [executable, "-list", "-keystore", pkcs_file, "-storetype", "pkcs12", "-rfc"]
     # Append optional alias
     if alias:
         export_cmd.extend(["-alias", alias])
@@ -297,27 +297,40 @@ def _export_public_cert_from_pkcs12(module, executable, pkcs_file, alias, passwo
 
 
 def get_proxy_settings(scheme="https"):
-    """Returns a tuple containing (proxy_host, proxy_port). (False, False) if no proxy is found"""
+    """Returns a tuple containing (proxy_host, proxy_port, proxy_user, proxy_pass).
+    (False, False, False, False) if no proxy is found."""
     proxy_url = getproxies().get(scheme, "")
     if not proxy_url:
-        return (False, False)
+        return (False, False, False, False)
+    parsed_url = urlparse(proxy_url)
+    if parsed_url.scheme:
+        proxy_host = parsed_url.hostname
+        proxy_port = parsed_url.port
     else:
-        parsed_url = urlparse(proxy_url)
-        if parsed_url.scheme:
-            (proxy_host, proxy_port) = parsed_url.netloc.split(":")
-        else:
-            (proxy_host, proxy_port) = parsed_url.path.split(":")
-        return (proxy_host, proxy_port)
+        (proxy_host, proxy_port) = parsed_url.path.split(":")
+    proxy_user = unquote(parsed_url.username) if parsed_url.username else False
+    proxy_pass = unquote(parsed_url.password) if parsed_url.password else False
+    return (proxy_host, proxy_port, proxy_user, proxy_pass)
 
 
 def build_proxy_options():
     """Returns list of valid proxy options for keytool"""
-    (proxy_host, proxy_port) = get_proxy_settings()
+    (proxy_host, proxy_port, proxy_user, proxy_pass) = get_proxy_settings()
     no_proxy = os.getenv("no_proxy")
 
     proxy_opts = []
     if proxy_host:
         proxy_opts.extend([f"-J-Dhttps.proxyHost={proxy_host}", f"-J-Dhttps.proxyPort={proxy_port}"])
+
+        if proxy_user and proxy_pass:
+            proxy_opts.extend(
+                [
+                    f"-J-Dhttps.proxyUser={proxy_user}",
+                    f"-J-Dhttps.proxyPassword={proxy_pass}",
+                    # JDK 8u111+ disables Basic auth for HTTPS tunneling by default; clear that restriction.
+                    "-J-Djdk.http.auth.tunneling.disabledSchemes=",
+                ]
+            )
 
         if no_proxy is not None:
             # For Java's nonProxyHosts property, items are separated by '|',
@@ -398,6 +411,14 @@ def import_pkcs12_path(
     if import_rc != 0 or not os.path.exists(keystore_path):
         module.fail_json(msg=import_out, rc=import_rc, cmd=import_cmd, error=import_err)
 
+    check_alias = keystore_alias or pkcs12_alias
+    if check_alias:
+        alias_exists, dummy = _check_cert_present(
+            module, executable, keystore_path, keystore_pass, check_alias, keystore_type
+        )
+        if not alias_exists:
+            module.fail_json(msg=import_out, rc=import_rc, cmd=import_cmd, error=import_err)
+
     return dict(
         changed=True, msg=import_out, rc=import_rc, cmd=import_cmd, stdout=import_out, error=import_err, diff=diff
     )
@@ -418,7 +439,11 @@ def import_cert_path(module, executable, path, keystore_path, keystore_pass, ali
     )
     diff = {"before": "\n", "after": f"{alias}\n"}
 
-    if import_rc != 0:
+    if import_rc != 0 or not os.path.exists(keystore_path):
+        module.fail_json(msg=import_out, rc=import_rc, cmd=import_cmd, error=import_err)
+
+    alias_exists, dummy = _check_cert_present(module, executable, keystore_path, keystore_pass, alias, keystore_type)
+    if not alias_exists:
         module.fail_json(msg=import_out, rc=import_rc, cmd=import_cmd, error=import_err)
 
     return dict(
@@ -487,6 +512,7 @@ def main():
         supports_check_mode=True,
         add_file_common_args=True,
     )
+    module.run_command_environ_update = {"LANGUAGE": "C", "LC_ALL": "C"}
 
     url = module.params.get("cert_url")
     path = module.params.get("cert_path")

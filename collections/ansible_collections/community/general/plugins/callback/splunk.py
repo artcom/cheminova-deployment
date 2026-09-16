@@ -94,7 +94,7 @@ from ansible.module_utils.urls import open_url
 from ansible.parsing.ajson import AnsibleJSONEncoder
 from ansible.plugins.callback import CallbackBase
 
-from ansible_collections.community.general.plugins.module_utils.datetime import (
+from ansible_collections.community.general.plugins.module_utils._datetime import (
     now,
 )
 
@@ -254,7 +254,7 @@ class CallbackModule(CallbackBase):
             self._runtime(result),
         )
 
-    def runner_on_async_failed(self, result, **kwargs):
+    def v2_runner_on_async_failed(self, result, **kwargs):
         self.splunk.send_event(
             self.url,
             self.authtoken,

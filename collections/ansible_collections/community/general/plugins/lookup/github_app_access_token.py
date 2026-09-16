@@ -97,12 +97,15 @@ except ImportError:
 
 import json
 import time
+from http import HTTPStatus
 from urllib.error import HTTPError
 
 from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible.module_utils.urls import open_url
 from ansible.plugins.lookup import LookupBase
 from ansible.utils.display import Display
+
+from ansible_collections.community.general.plugins.plugin_utils._lookup import check_for_no_terms
 
 display = Display()
 
@@ -177,9 +180,9 @@ def post_request(generated_jwt, installation_id, api_base):
             display.vvv(f"Error returned: {error_body}")
         except Exception:
             error_body = {}
-        if e.code == 404:
+        if e.code == HTTPStatus.NOT_FOUND:
             raise AnsibleError("Github return error. Please confirm your installation_id value is valid") from e
-        elif e.code == 401:
+        elif e.code == HTTPStatus.UNAUTHORIZED:
             raise AnsibleError("Github return error. Please confirm your private key is valid") from e
         raise AnsibleError(f"Unexpected data returned: {e} -- {error_body}") from e
     response_body = response.read()
@@ -207,6 +210,7 @@ class LookupModule(LookupBase):
             )
 
         self.set_options(var_options=variables, direct=kwargs)
+        check_for_no_terms(self, terms=terms, direct=kwargs)
 
         if not (self.get_option("key_path") or self.get_option("private_key")):
             raise AnsibleOptionsError("One of key_path or private_key is required")
