@@ -11,6 +11,7 @@ all:
     certbot_config_dir: /srv/config/certbot
     gateway_config_dir: /srv/config/gateway
     mc_config_dir: /srv/config/mc
+    aws_config_dir: /srv/config/aws
     mc_container_image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     locations_conf: config/nginx/locations.conf.j2
     root_app: frontend
@@ -37,6 +38,7 @@ all:
       cheminova:
         name: bucket-name # Enter s3 bucket name
         endpoint: "https://fra1.digitaloceanspaces.com" # Change to your s3 api endpoint url
+        region: fra1 # Change to your s3 region
         access_key: "" # Enter access key (use vault variable!)
         secret_key: "" # Enter secret key (use vault variable!)
     media_backup_path: media

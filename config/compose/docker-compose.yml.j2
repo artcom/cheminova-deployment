@@ -66,13 +66,13 @@ services:
       SECRET_KEY:
       BASE_PATH: /cms/
       WAGTAILADMIN_BASE_URL: "{{ wagtailadmin_base_url }}"
-      MC_CONFIG_PATH: /home/wagtail/.mc/config.json
-      BUCKET_ALIAS: {{ mc_alias }}
+      S3_CONFIG_PATH: /home/wagtail/.aws/config
+      BUCKET_ALIAS: {{ s3_profile }}
       BUCKET_NAME: {{ bucket_name }}
       DB_DUMP_PATH: {{ db_dump_path }}
     volumes:
-      - source: {{ mc_config_dir }}/config.json
-        target: /home/wagtail/.mc/config.json
+      - source: {{ aws_config_dir }}/config
+        target: /home/wagtail/.aws/config
         type: bind
       - source: {{ cms_static_volume }}
         target: /app/static
@@ -110,39 +110,32 @@ services:
       timeout: 10s
       retries: 5
 
-  s3-config:
-    image: {{ mc_container_image }}
-    command:
-      [
-        "mb",
-        "--ignore-existing",
-        "{{ mc_alias }}/{{ bucket_media_backup }}",
-        "{{ mc_alias }}/{{ bucket_database_backup }}",
-      ]
-    volumes:
-      - source: {{ mc_config_dir }}/config.json
-        target: /root/.mc/config.json
-        type: bind
-    restart: on-failure
-
   media-backup:
-    image: {{ mc_container_image }}
-    command: ["mirror", "--watch", "/media", "{{ mc_alias }}/{{ bucket_media_backup }}"]
+    image: {{ aws_cli_image }}
+    entrypoint: ["/bin/bash", "/usr/local/bin/media-backup.sh"]
+    environment:
+      AWS_CONFIG_FILE: /root/.aws/config
+      AWS_PROFILE: {{ s3_profile }}
+      BUCKET_NAME: {{ bucket_name }}
+      MEDIA_PREFIX: media
+      BACKUP_INTERVAL: 30
     volumes:
-      - source: {{ mc_config_dir }}/config.json
-        target: /root/.mc/config.json
+      - source: {{ aws_config_dir }}/config
+        target: /root/.aws/config
         type: bind
+      - source: {{ aws_config_dir }}/media-backup.sh
+        target: /usr/local/bin/media-backup.sh
+        type: bind
+        read_only: true
       - source: {{ cms_media_volume }}
         target: /media
         type: volume
     depends_on:
       cms:
         condition: service_healthy
-      s3-config:
-        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mc", "ls", "{{ mc_alias }}/{{ bucket_media_backup }}"]
+      test: ["CMD", "aws", "s3api", "head-bucket", "--bucket", "{{ bucket_name }}"]
       start_interval: 5s
       start_period: 10s
       interval: 30s

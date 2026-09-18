@@ -1,0 +1,13 @@
+{% for profile_name, config in buckets.items() %}
+[profile {{ profile_name }}]
+region = {{ config.region }}
+endpoint_url = {{ config.endpoint }}
+aws_access_key_id = {{ config.access_key }}
+aws_secret_access_key = {{ config.secret_key }}
+output = json
+s3 =
+    addressing_style = auto
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}

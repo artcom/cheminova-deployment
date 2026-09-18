@@ -1,0 +1,23 @@
+- name: create aws cli config directory
+  ansible.builtin.file:
+    path: "{{ aws_config_dir }}"
+    state: directory
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0750"
+
+- name: copy aws cli config file
+  ansible.builtin.template:
+    src: config.j2
+    dest: "{{ aws_config_dir }}/config"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0644"
+
+- name: copy media backup script
+  ansible.builtin.copy:
+    src: media-backup.sh
+    dest: "{{ aws_config_dir }}/media-backup.sh"
+    owner: "{{ deployment_user }}"
+    group: "{{ deployment_user }}"
+    mode: "0755"
